@@ -27,8 +27,7 @@ class Optopus():
         self._broker.sleep(time)
         
     def _change_account_item(self, item: AccountItem) -> None:
-        if item.tag == 'id':
-            self._account.id = item.value
+        self._account.change_item(item)
 
 
 

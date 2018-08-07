@@ -12,15 +12,18 @@ from ib_insync.ib import IB
 from ib_insync.objects import AccountValue
 from ib_insync import util
 
+from money import Money
+from currency import Currency
+
 from account import AccountItem
+
 
 class IBObject(Enum):
     account = 'ACCOUNT'
     order = 'ORDER'
 
 
-
-class IBBroker:
+class IBAdapter:
     """Class implementing the Interactive Brokers interface"""
 
     def __init__(self, host: str, port: int, client: int=0) -> None:
@@ -42,7 +45,7 @@ class IBBroker:
 
     def disconnect(self) -> None:
         self._broker.disconnect()
-        
+
     def sleep(self, time: float) -> None:
         util.sleep(time)
 
@@ -52,14 +55,18 @@ class IBBroker:
                                                           item.tag,
                                                           item.value,
                                                           item.currency)
-        if account_item.tag:
+        if account_item.tag:  # item translated
             self.emit_account_item_event(account_item)
 
 
 class IBTranslator:
     """Translate the IB tags and values to Ocptopus"""
     def __init__(self) -> None:
-        self._account_translation = {'AccountCode': 'id'}
+        self._account_translation = {'AccountCode': 'id',
+                                     'AvailableFunds': 'funds',
+                                     'BuyingPower': 'buying_power',
+                                     'CashBalance': 'cash', 
+                                     'DayTradesRemaining': 'max_day_trades'}
 
     def translate_from_IB(self,
                           ib_object: IBObject,
@@ -67,15 +74,45 @@ class IBTranslator:
                           ib_tag: str,
                           ib_value: object,
                           ib_currency: str) -> AccountItem:
-
-        if ib_object == IBObject.account:         
-                return AccountItem(ib_account,
-                                   self._translate_account_tag(ib_tag),
-                                   ib_value,
-                                   ib_currency)
+        # print(ib_tag, ' ', ib_value, ' ', ib_currency)
+        if ib_object == IBObject.account:   
+                opt_money = None
+                opt_value = None
+                
+                opt_tag = self._translate_account_tag(ib_tag)              
+                
+                if ib_currency and is_number(ib_value):
+                    opt_money = self._translate_value_currency(ib_value,
+                                                               ib_currency)
+                else: #for no money value.
+                    opt_value = ib_value
+                
+                return AccountItem(ib_account, opt_tag, opt_value, opt_money)
 
     def _translate_account_tag(self, ib_tag: str) -> str:
             tag = None
             if ib_tag in self._account_translation:
                 tag = self._account_translation[ib_tag]
             return tag
+
+    def _translate_value_currency(self,
+                                  ib_value: str,
+                                  ib_currency: str) -> Money:
+        m = None
+
+        if ib_currency == 'USD':
+            m = Money(ib_value, Currency.USD)
+        elif ib_currency == 'EUR':
+            m = Money(ib_value, Currency.EUR)
+        if ib_currency == 'BASE': # TODO App parameter
+            m = Money(ib_value, Currency.USD)
+
+        return m
+
+
+def is_number(s: str) -> bool:
+    try:
+        float(s)
+        return True
+    except:
+        return False

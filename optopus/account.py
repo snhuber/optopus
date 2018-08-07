@@ -9,6 +9,14 @@ Created on Sat Aug  4 17:27:47 2018
 # https://stackoverflow.com/questions/34269772/type-hints-in-namedtuple
 
 from typing import NamedTuple
+from money import Money
+
+
+class AccountItem(NamedTuple):
+    account_id: str = None
+    tag: str = None
+    value: str = None
+    money: Money
 
 
 class Account:
@@ -16,6 +24,27 @@ class Account:
 
     def __init__(self) -> None:
         self._id = None
+        # Cash Account: Minimum (Equity with Loan Value, Previous Day Equity 
+        # with Loan Value)-Initial Margin, Standard Margin Account: Minimum 
+        # (Equity with Loan Value, Previous Day Equity with Loan Value) 
+        # - Initial Margin *4
+        self.buying_power = None 
+        # Cash recognized at the time of trade + futures PNL
+        self.cash = None   
+        # This value tells what you have available for trading
+        self.funds = None  
+        # Number of Open/Close trades in a day
+        self.max_day_trades = None
+
+    def change_item(self, item: AccountItem) -> None:
+        try:
+            if hasattr(self, item.tag):
+                if item.value:
+                    setattr(self, item.tag, item.value)
+                else:
+                    setattr(self, item.tag, item.money)
+        except AttributeError as err:
+            print('Account item error:', err)
 
     @property
     def id(self) -> str:
@@ -29,8 +58,3 @@ class Account:
             self._id = value
 
 
-class AccountItem(NamedTuple):
-    account_id: str = None
-    tag: str = None
-    value: object = None
-    currency: str = None
