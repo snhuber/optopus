@@ -27,7 +27,10 @@ class Optopus():
         self._broker.sleep(time)
         
     def _change_account_item(self, item: AccountItem) -> None:
-        self._account.change_item(item)
+        try:
+            self._account.update_item_value(item)
+        except Exception as e :
+            print('Error updating account item', e)
 
 
 

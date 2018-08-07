@@ -1,6 +1,6 @@
-"""Custom exceptions for money operations"""
+"""Custom exceptions """
 
-#pylint: disable=missing-docstring
+
 
 class InvalidAmountError(ValueError):
     def __init__(self):

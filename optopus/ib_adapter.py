@@ -12,10 +12,10 @@ from ib_insync.ib import IB
 from ib_insync.objects import AccountValue
 from ib_insync import util
 
-from money import Money
-from currency import Currency
+from optopus.money import Money
+from optopus.currency import Currency
 
-from account import AccountItem
+from optopus.account import AccountItem
 
 
 class IBObject(Enum):

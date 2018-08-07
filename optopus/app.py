@@ -5,8 +5,8 @@ Created on Sun Aug  5 07:34:45 2018
 
 @author: ilia
 """
-from ib_adapter import IBAdapter
-from optopus import Optopus
+from optopus.ib_adapter import IBAdapter
+from optopus.optopus import Optopus
 
 
 host = '127.0.0.1'
