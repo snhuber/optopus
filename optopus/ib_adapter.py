@@ -17,6 +17,7 @@ from optopus.currency import Currency
 
 from optopus.account import AccountItem
 
+from optopus.parameter import p_currency
 
 class IBObject(Enum):
     account = 'ACCOUNT'
@@ -100,12 +101,8 @@ class IBTranslator:
                                   ib_currency: str) -> Money:
         m = None
 
-        if ib_currency == 'USD':
-            m = Money(ib_value, Currency.USD)
-        elif ib_currency == 'EUR':
-            m = Money(ib_value, Currency.EUR)
-        if ib_currency == 'BASE': # TODO App parameter
-            m = Money(ib_value, Currency.USD)
+        if ib_currency == p_currency:
+            m = Money(ib_value, p_currency)
 
         return m
 
