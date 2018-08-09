@@ -3,9 +3,8 @@
 from typing import Union
 from decimal import Decimal, ROUND_HALF_UP
 #from babel.numbers import format_currency
-from optopus.currency import Currency
-from optopus.currency import CurrencyHelper
-from optopus.exceptions import InvalidAmountError, CurrencyMismatchError, InvalidOperandError
+from currency import Currency, CurrencyHelper
+from exceptions import InvalidAmountError, CurrencyMismatchError, InvalidOperandError
 
 class Money:
     """Class representing a monetary amount"""

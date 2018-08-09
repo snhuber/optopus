@@ -4,7 +4,7 @@ from optopus.signal import ItemSignal, Signal
 from optopus.security import SecurityType
 from optopus.signal import RightType, ActionType
 from optopus.money import Money
-from optopus.parameter import p_currency
+from optopus.settings import p_currency
 
 
 def test_create_item_signal():

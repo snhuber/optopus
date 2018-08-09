@@ -6,18 +6,19 @@ Created on Sun Aug  5 07:21:38 2018
 @author: ilia
 """
 # from ib_insync import *
+import datetime
 from enum import Enum
 
 from ib_insync.ib import IB
 from ib_insync.objects import AccountValue
 from ib_insync import util
 
-from optopus.money import Money
-from optopus.currency import Currency
+from money import Money
+from currency import Currency
 
-from optopus.account import AccountItem
+from account import AccountItem
 
-from optopus.parameter import p_currency
+from settings import p_currency
 
 class IBObject(Enum):
     account = 'ACCOUNT'
@@ -37,12 +38,17 @@ class IBAdapter:
 
         # Callable objects. Optopus direcction
         self.emit_account_item_event = None
+        self.execute_every_period = None
 
         # Cannect to ib_insync events
         self._broker.accountValueEvent += self._onAccountValueEvent
 
     def connect(self) -> None:
         self._broker.connect(self._host, self._port, self._client)
+        for t in self._broker.timeRange(datetime.time(0, 0),
+                                        datetime.datetime(2100, 1, 1, 0),
+                                        10):
+            self.execute_every_period()
 
     def disconnect(self) -> None:
         self._broker.disconnect()

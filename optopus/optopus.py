@@ -5,7 +5,7 @@ Created on Sat Aug  4 16:30:25 2018
 
 @author: ilia
 """
-from optopus.account import Account, AccountItem
+from account import Account, AccountItem
 
 
 class Optopus():
@@ -16,6 +16,7 @@ class Optopus():
         self._account = Account()
         # Events
         self._broker.emit_account_item_event = self._change_account_item
+        self._broker.execute_every_period = self._step
 
     def start(self) -> None:
         self._broker.connect()
@@ -32,7 +33,8 @@ class Optopus():
         except Exception as e:
             print('Error updating account item', e)
 
-
+    def _step(self) -> None:
+        print('.')
 
 
 

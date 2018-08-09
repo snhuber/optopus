@@ -9,7 +9,7 @@ Created on Sat Aug  4 17:27:47 2018
 # https://stackoverflow.com/questions/34269772/type-hints-in-namedtuple
 
 from typing import NamedTuple
-from optopus.money import Money
+from money import Money
 
 
 class AccountItem(NamedTuple):
