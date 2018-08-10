@@ -6,7 +6,8 @@ Created on Sat Aug  4 16:30:25 2018
 @author: ilia
 """
 from account import Account, AccountItem
-
+from data_manager import DataManager, DataSource
+from strategy import DummyStrategy
 
 class Optopus():
     """Class implementing automated trading system"""
@@ -16,16 +17,26 @@ class Optopus():
         self._account = Account()
         # Events
         self._broker.emit_account_item_event = self._change_account_item
-        self._broker.execute_every_period = self._step
+        
+        
+        self._data_manager = DataManager()
+        self._data_manager.add_data_adapter(self._broker._data_adapter,
+                                            DataSource.IB)
+        
+        #strategies
+        
 
     def start(self) -> None:
-        self._broker.connect()
-
+        self._start_strategies()
+        
     def stop(self) -> None:
-        self._broker.disconnect()
+        pass
 
     def pause(self, time: float) -> None:
         self._broker.sleep(time)
+
+    def _start_strategies(self) -> None:
+        self.dummy = DummyStrategy(self._data_manager)
 
     def _change_account_item(self, item: AccountItem) -> None:
         try:
@@ -33,8 +44,9 @@ class Optopus():
         except Exception as e:
             print('Error updating account item', e)
 
-    def _step(self) -> None:
+    def beat(self) -> None:
         print('.')
+        self.dummy.calculate_signals()
 
 
 

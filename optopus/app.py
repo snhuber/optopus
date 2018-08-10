@@ -5,26 +5,27 @@ Created on Sun Aug  5 07:34:45 2018
 
 @author: ilia
 """
-from ib_adapter import IBAdapter
+import datetime
+from ib_insync.ib import IB
+from ib_adapter import IBBrokerAdapter
 from optopus import Optopus
 
 
-
 host = '127.0.0.1'
-port = 4002  #paper trading
+port = 4002  # paper trading
 # port = 4001
-
 client = 9
 
-ib_adapter = IBAdapter(host, port, client)
+ib = IB()
+ib.connect(host, port, client)
+
+ib_adapter = IBBrokerAdapter(ib)
 
 opt = Optopus(ib_adapter)
-
 opt.start()
-#opt.pause(1)
-print('ID', opt._account.id)
-print('FUNDS', opt._account.funds)
-print('BUYING POWER', opt._account.buying_power)
-print('CASH', opt._account.cash)
-print('MAX_DAY_TRADES', opt._account.max_day_trades)
-opt.stop()
+
+for t in ib.timeRange(datetime.time(0, 0), datetime.datetime(2100, 1, 1, 0), 10):
+    print(t)
+    opt.beat()
+
+ib.disconnect()
