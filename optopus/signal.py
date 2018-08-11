@@ -4,7 +4,7 @@ from enum import Enum
 import uuid
 from security import SecurityType
 from money import Money
-from settings import p_currency
+from settings import CURRENCY
 
 
 class RightType(Enum):
@@ -39,7 +39,7 @@ class ItemSignal():
         if quantity < 1:
             raise(ValueError)
         self.quantity = quantity
-        if limit <= Money(0, p_currency):
+        if limit <= Money(0, CURRENCY):
             raise(ValueError)
         self.limit = limit
 

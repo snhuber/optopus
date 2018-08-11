@@ -46,6 +46,7 @@ class Optopus():
 
     def beat(self) -> None:
         print('.')
+        self._data_manager.update_data_series()
         self.dummy.calculate_signals()
 
 

@@ -12,17 +12,29 @@ from enum import Enum
 from ib_insync.ib import IB
 from ib_insync.contract import Index, Stock, Option
 from ib_insync.objects import AccountValue
-from ib_insync import util
+from ib_insync.contract import Contract
 
 from account import AccountItem
 from money import Money
-from data_manager import DataSeries, DataSeriesType, DataAdapter
-from settings import p_currency
+from data_manager import (DataSeriesType, DataAdapter, DataSeries, 
+                          DataSeriesIndex, DataSeriesOption,
+                          DataIndex)
+from settings import CURRENCY
 
 
 class IBObject(Enum):
     account = 'ACCOUNT'
     order = 'ORDER'
+
+class IBSeries():
+    def __init__(self,
+                 series_type: DataSeriesType,
+                 contract: Contract,
+                 exchange: str = 'SMART') -> None:
+        self.series_type = series_type
+        self.contract = contract
+        self.exchange = exchange
+        self.data = []
 
 
 class IBBrokerAdapter:
@@ -96,8 +108,8 @@ class IBTranslator:
                                   ib_currency: str) -> Money:
         m = None
 
-        if ib_currency == p_currency:
-            m = Money(ib_value, p_currency)
+        if ib_currency == CURRENCY:
+            m = Money(ib_value, CURRENCY)
 
         return m
 
@@ -105,7 +117,7 @@ class IBTranslator:
 class IBDataAdapter(DataAdapter):
     def __init__(self, broker: IB) -> None:
         self._broker = broker
-        self._data_series = {}
+        self._series = {}
         self._contracts = {}
 
     def connect_data_series(self, ds: DataSeries) -> bool:
@@ -115,40 +127,50 @@ class IBDataAdapter(DataAdapter):
            self._connect_data_series_options(ds) 
         
 
-    def _connect_data_series_index(self, ds: DataSeries) -> bool:
+    def _connect_data_series_index(self, ds: DataSeriesIndex) -> bool:
         started = False
-        idx = ds.code + '_' + ds.data_series_type.value
-        if idx not in self._data_series:
+        if ds.data_series_id not in self._series:
                 contract = Index(ds.code)
                 q_contract = self._broker.qualifyContracts(contract)
-
+                print(q_contract)
                 if len(q_contract) == 1:
-                    self._data_series[idx] = {'data_series': ds,
-                                              'contract': q_contract[0]}
+                    #create a new series object and add to series dict
+                    ibs = IBSeries(series_type=ds.data_series_type,
+                                   contract=q_contract[0])
+                    self._series[ds.data_series_id] = ibs
+                    #self._data_series[idx] = {'data_series': ds,
+                    #                          'contract': q_contract[0]}
                     started = True
                 else:
-                    raise(ValueError, 'Error: multiple contracts')
+                    raise ValueError('Error: multiple contracts')
         return started
 
-    def _connect_data_series_options(self, ds: DataSeries) -> bool:
+    def _connect_data_series_options(self, ds: DataSeriesOption) -> bool:
         started = False
-        idx = ds.code + '_' + ds.data_series_type.value
-        if idx not in self._data_series:
-                if ds.data_series_type_underlying == DataSeriesType.Index:           
-                    #Create the underlying contract
+        if ds.data_series_id not in self._series:
+            
+            if ds.data_series_type_underlying == DataSeriesType.Index:           
+                    # Create the underlying contract
                     contract = Index(ds.code)
                     q_contract = self._broker.qualifyContracts(contract)
-                    
+
                     if len(q_contract) == 1:
+                        ibs = IBSeries(ds.data_series_type, q_contract[0])
+                        self._series[ds.data_series_id] = ibs
+                        
+                        # Ask for options chains
                         chains = self._broker.reqSecDefOptParams(
                                 q_contract[0].symbol,
                                 '',
                                 q_contract[0].secType,
                                 q_contract[0].conId)
+                        data = {'contract': q_contract[0],
+                                   'chains': chains}
                         
-                        self._data_series[idx] = {'data_series': ds,
-                                                  'contract': q_contract[0],
-                                                  'chains': chains}
+                        print(data)
+                        #self._data_series[idx] = {'data_series': ds,
+                        #                          'contract': q_contract[0],
+                        #                          'chains': chains}
                         started = True
                     else:
                         raise(ValueError, 'Error: multiple contracts')
@@ -157,16 +179,41 @@ class IBDataAdapter(DataAdapter):
     def disconnect_data_series(self) -> bool:
         pass
 
-    def ticket(self, ds: DataSeries) -> DataSeries:
-        idx = ds.code + '_' + ds.data_series_type.value
-        print(idx)
-        t = self._broker.reqTickers(self._data_series[idx]['contract'])
-        if ds.data_series_type == DataSeriesType.Option:
-            print ('CHAINS: ',self._data_series[idx]['chains'])
+    def update_data_series(self) -> None:
+        for ds in self._series:
+            self._fetch_data(self._series[ds])
+
+    def _fetch_data(self, ibs: DataSeries) -> None:
+        if ibs.series_type == DataSeriesType.Index:
+             self._fech_data_index(ibs)
+        if ibs.series_type == DataSeriesType.Option:
+            pass
+
+    def _fech_data_index(self, ibs: IBSeries) -> None:
+        if ibs.series_type == DataSeriesType.Index:
+            [d] = self._broker.reqTickers(
+                ibs.contract)
+            data_index = DataIndex(last=d.last,
+                                   high=d.high,
+                                   low=d.low,
+                                   close=d.close,
+                                   bid=d.bid,
+                                   bid_size=d.bidSize,
+                                   ask=d.ask,
+                                   ask_size = d.askSize,
+                                   time=d.time)
+            ibs.data.append(data_index)
+
+    def data(self, ds: DataSeries) -> object:
+        if ds.data_series_id not in self._series:
+            self.connect_data_series(ds)
+            self._fetch_data(self._series[ds.data_series_id])
+        return self._series[ds.data_series_id].data
+
 
 def is_number(s: str) -> bool:
     try:
         float(s)
         return True
-    except:
+    except Exception as e:
         return False

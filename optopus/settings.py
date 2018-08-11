@@ -2,4 +2,4 @@
 from currency import Currency
 
 
-p_currency = Currency.USD
+CURRENCY = Currency.USD
