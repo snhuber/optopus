@@ -5,9 +5,9 @@ Created on Sat Aug  4 16:30:25 2018
 
 @author: ilia
 """
-from account import Account, AccountItem
-from data_manager import DataManager, DataSource
-from strategy import DummyStrategy
+from optopus.account import Account, AccountItem
+from optopus.data_manager import DataManager, DataSource
+from optopus.strategy import DummyStrategy
 
 class Optopus():
     """Class implementing automated trading system"""

@@ -1,32 +1,37 @@
+import os
+import sys
+import codecs
 from setuptools import setup
-from os import path
 
-here = path.abspath(path.dirname(__file__))
+if sys.version_info < (3, 6, 0):
+    raise RuntimeError("optopus requires Python 3.6 or higher")
 
-# Get the long description from the README file
-with open(path.join(here, 'README.rst')) as f:
+here = os.path.abspath(os.path.dirname(__file__))
+
+__version__ = None
+exec(open(os.path.join(here, 'optopus', 'version.py')).read())
+
+with codecs.open(os.path.join(here, 'README.rst'), encoding='utf-8') as f:
     long_description = f.read()
 
 setup(
     name='optopus',
-    packages=[
-        'optopus'
-    ],
-    version='0.0.1',
-    description='Options with ib-insync',
+    version=__version__,
+    description='Python trading tool for options using ib_insync',
     long_description=long_description,
     url='https://github.com/ciherraiz/optopus',
     author='ciherraiz',
     author_email='a@a.com',
-    license='MIT',
+    license='BSD',
+    python_requires='>=3.6',
     classifiers=[
         'Development Status :: 4 - Beta',
         'Intended Audience :: Developers',
-        'License :: OSI Approved :: MIT License',
-        'Programming Language :: Python :: 3',
+        'Topic :: Office/Business :: Financial :: Investment',
+        'License :: OSI Approved :: BSD License',
+        'Programming Language :: Python :: 3.6',
+        'Programming Language :: Python :: 3 :: Only',
     ],
-    keywords='options trading',
-    install_requires=[
-        'ib-insync'
-    ],
+    keywords='ibapi asyncio jupyter interactive brokers async',
+    packages=['optopus']
 )

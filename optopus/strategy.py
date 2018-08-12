@@ -1,11 +1,11 @@
 import datetime
-from money import Money
-from order_manager import OrderManager
-from data_manager import (DataManager, DataSeriesType, DataSource,
+from optopus.money import Money
+from optopus.order_manager import OrderManager
+from optopus.data_manager import (DataManager, DataSource,
                           DataSeriesIndex, DataSeriesOption)
-from signal import Signal, RightType, ActionType
-from security import SecurityType
-from settings import CURRENCY
+from optopus.signal import Signal, RightType, ActionType
+from optopus.security import SecurityType
+from optopus.settings import CURRENCY
 
 
 class Strategy():
@@ -48,4 +48,6 @@ class DummyStrategy(Strategy):
             print('dl is empty')
         #print('SPX OPTION!!!!!')
         #self._data_manager.ticket(self.SPX_OPT)
-        #dl = self._data_manager.data(self.SPX_OPT)
+        dl = self._data_manager.data(self.SPX_OPT)
+        if dl:
+            print(dl)

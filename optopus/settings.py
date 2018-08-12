@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-from currency import Currency
+from optopus.currency import Currency
 
 
 CURRENCY = Currency.USD

@@ -7,8 +7,8 @@ Created on Sun Aug  5 07:34:45 2018
 """
 import datetime
 from ib_insync.ib import IB
-from ib_adapter import IBBrokerAdapter
-from optopus import Optopus
+from optopus.ib_adapter import IBBrokerAdapter
+from optopus.optopus import Optopus
 
 
 host = '127.0.0.1'

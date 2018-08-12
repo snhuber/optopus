@@ -2,9 +2,9 @@
 import datetime
 from enum import Enum
 import uuid
-from security import SecurityType
-from money import Money
-from settings import CURRENCY
+from optopus.security import SecurityType
+from optopus.money import Money
+from optopus.settings import CURRENCY
 
 
 class RightType(Enum):
