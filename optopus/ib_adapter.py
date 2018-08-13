@@ -10,16 +10,17 @@ import datetime
 from enum import Enum
 
 from ib_insync.ib import IB
-from ib_insync.contract import Index, Stock, Option
+from ib_insync.contract import Index,  Option
 from ib_insync.objects import AccountValue, OptionComputation
 from ib_insync.contract import Contract
 
 from optopus.account import AccountItem
 from optopus.money import Money
-from optopus.data_manager import (DataSeriesType, DataAdapter, DataSeries, 
-                          DataSeriesIndex, DataSeriesOption,
-                          DataIndex, DataOption, OptionIndicators,
-                          DataOptionChain, OptionRight, nan)
+from optopus.data_objects import (DataSeriesType, DataSeries,
+                                  DataSeriesIndex, DataSeriesOption,
+                                  DataIndex, DataOption, OptionIndicators,
+                                  DataOptionChain, OptionRight)
+from optopus.data_manager import DataAdapter
 from optopus.settings import CURRENCY
 
 
@@ -34,7 +35,7 @@ class IBSeries():
                  ibs_underlying_id: str = None) -> None:
         self.series_type = series_type
         self.contract = contract
-        self.data = []
+        self.data = None
         self.ibs_underlying_id = ibs_underlying_id
 
 
@@ -183,7 +184,7 @@ class IBDataAdapter(DataAdapter):
                                last=d.last,
                                last_size=d.lastSize,
                                time=d.time)
-        ibs.data.append(data_index)
+        ibs.data=data_index
 
 
     def _fecth_data_option(self, ibs: IBSeries) -> None:
@@ -197,7 +198,7 @@ class IBDataAdapter(DataAdapter):
         
         if chain:
             # Ask for last underlying price
-            u_price = self._series[ibs.ibs_underlying_id].data[-1].market_price()
+            u_price = self._series[ibs.ibs_underlying_id].data.market_price()
             
             # next three expiration dates
             expirations = sorted(exp for exp in chain.expirations)[:3]
@@ -280,7 +281,7 @@ class IBDataAdapter(DataAdapter):
                 else:
                     exp_dict[opt.expiration][opt.strike]['P'] = opt
     
-        ibs.data.append(DataOptionChain(ibs.contract.symbol, exp_dict))
+        ibs.data = DataOptionChain(ibs.contract.symbol, exp_dict)
 
     def _create_option_indicators(self,
                                   oc: OptionComputation) -> OptionIndicators:

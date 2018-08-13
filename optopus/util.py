@@ -1,10 +1,9 @@
 # -*- coding: utf-8 -*-
 
 
-def df(data):
-    import itertools
+def df(records):
     import pandas as pd
-    records = [e.values for e in data]
-    records = list(itertools.chain.from_iterable(records))
-    print(records)
-    return pd.DataFrame(data=[r.values for r in records])
+    print('Type: ', type(records))
+    if type(records) != list:
+        records = [records]
+    return pd.DataFrame(data=records)
