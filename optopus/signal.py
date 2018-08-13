@@ -2,7 +2,7 @@
 import datetime
 from enum import Enum
 import uuid
-from optopus.security import SecurityType
+from optopus.data_objects import AssetType
 from optopus.money import Money
 from optopus.settings import CURRENCY
 
@@ -20,7 +20,7 @@ class ActionType(Enum):
 class ItemSignal():
     def __init__(self,
                  symbol: str,
-                 security_type: SecurityType,
+                 asset_type: AssetType,
                  expiration: datetime.date,
                  strike: int,
                  right: RightType,
@@ -30,7 +30,7 @@ class ItemSignal():
 
         self.item_signal_id = uuid.uuid4()
         self.symbol = symbol
-        self.security_type = security_type
+        self.asset_type = asset_type
         if strike <= 0:
             raise(ValueError)
         self.strike = strike
@@ -56,7 +56,7 @@ class Signal():
 
     def add_item(self,
                  symbol: str,
-                 security_type: SecurityType,
+                 asset_type: AssetType,
                  expiration: datetime.date,
                  strike: int,
                  right: RightType,
@@ -64,7 +64,7 @@ class Signal():
                  quantity: int,
                  limit: Money) -> None:
 
-        i = ItemSignal(symbol, security_type, expiration, strike, right,
+        i = ItemSignal(symbol, asset_type, expiration, strike, right,
                        action, quantity, limit)
 
         self.items.append(i)

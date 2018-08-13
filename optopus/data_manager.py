@@ -1,6 +1,5 @@
 # -*- coding: utf-8 -*-
-from enum import Enum
-from optopus.data_objects import DataSource, DataSeries
+from optopus.data_objects import DataSource, Asset
 
 
 class DataAdapter():
@@ -17,10 +16,29 @@ class DataManager():
                          data_source: DataSource) -> None:
         self._data_adapters[data_source] = data_adapter
 
-    def update_data_series(self) -> None:
+    def update_assets(self) -> None:
         for da in self._data_adapters:
-            self._data_adapters[da].update_data_series()
-
-    def data(self, ds: DataSeries) -> list:
-        l = self._data_adapters[ds.data_source].data(ds)
-        return l
+            self._data_adapters[da].update_assets()
+    
+    def current(self, assets: Asset, fields: list) -> object:
+        nan = float('nan')
+        data_assets=[]
+        if not isinstance(assets, list):
+            assets = [assets]
+        
+        for asset in assets:
+            data = self._data_adapters[asset.data_source].current(asset)
+            data_assets.append(data)
+            
+        values_list=[]
+        for data in data_assets:
+            d = {}
+            d['code'] = getattr(data, 'code')
+            for field in fields:
+                if hasattr(data, field):
+                  d[field] = getattr(data, field)
+                else:
+                    d[field] = nan
+            values_list.append(d)
+            
+        return values_list

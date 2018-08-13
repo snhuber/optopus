@@ -7,6 +7,7 @@ Created on Sat Aug  4 16:30:25 2018
 """
 from optopus.account import Account, AccountItem
 from optopus.data_manager import DataManager, DataSource
+from optopus.data_objects import Asset
 from optopus.strategy import DummyStrategy
 
 class Optopus():
@@ -46,8 +47,11 @@ class Optopus():
 
     def beat(self) -> None:
         print('.')
-        self._data_manager.update_data_series()
+        self._data_manager.update_assets()
         self.dummy.calculate_signals()
+        
+    def current(self, assets: Asset, fields: list) -> object:
+        return self._data_manager.curren(assets, fields)
 
 
 

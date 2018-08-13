@@ -16,8 +16,7 @@ from ib_insync.contract import Contract
 
 from optopus.account import AccountItem
 from optopus.money import Money
-from optopus.data_objects import (DataSeriesType, DataSeries,
-                                  DataSeriesIndex, DataSeriesOption,
+from optopus.data_objects import (AssetType, Asset, AssetIndex, AssetOption,
                                   DataIndex, DataOption, OptionIndicators,
                                   DataOptionChain, OptionRight)
 from optopus.data_manager import DataAdapter
@@ -28,15 +27,15 @@ class IBObject(Enum):
     account = 'ACCOUNT'
     order = 'ORDER'
 
-class IBSeries():
+class IBAsset():
     def __init__(self,
-                 series_type: DataSeriesType,
+                 asset_type: AssetType,
                  contract: Contract,
-                 ibs_underlying_id: str = None) -> None:
-        self.series_type = series_type
+                 iba_underlying_id: str = None) -> None:
+        self.asset_type = asset_type
         self.contract = contract
         self.data = None
-        self.ibs_underlying_id = ibs_underlying_id
+        self.iba_underlying_id = iba_underlying_id
 
 
 class IBBrokerAdapter:
@@ -119,26 +118,26 @@ class IBTranslator:
 class IBDataAdapter(DataAdapter):
     def __init__(self, broker: IB) -> None:
         self._broker = broker
-        self._series = {}
+        self.assets = {}
         self._contracts = {}
 
-    def connect_data_series(self, ds: DataSeries) -> bool:
-        if ds.data_series_type == DataSeriesType.Index:
-           self._connect_data_series_index(ds)
-        elif ds.data_series_type == DataSeriesType.Option:
-           self._connect_data_series_options(ds) 
+    def register_asset(self, ds: Asset) -> bool:
+        if ds.asset_type == AssetType.Index:
+           self._register_index(ds)
+        elif ds.asset_type == AssetType.Option:
+           self._register_option(ds) 
         
 
-    def _connect_data_series_index(self, ds: DataSeriesIndex) -> bool:
+    def _register_index(self, ds: AssetIndex) -> bool:
         started = False
-        if ds.data_series_id not in self._series:
+        if ds.asset_id not in self.assets:
                 contract = Index(ds.code)
                 q_contract = self._broker.qualifyContracts(contract)
                 if len(q_contract) == 1:
                     #create a new series object and add to series dict
-                    ibs = IBSeries(series_type=ds.data_series_type,
+                    iba = IBAsset(asset_type=ds.asset_type,
                                    contract=q_contract[0])
-                    self._series[ds.data_series_id] = ibs
+                    self.assets[ds.asset_id] = iba
                     #self._data_series[idx] = {'data_series': ds,
                     #                          'contract': q_contract[0]}
                     started = True
@@ -146,34 +145,34 @@ class IBDataAdapter(DataAdapter):
                     raise ValueError('Error: multiple contracts')
         return started
 
-    def _connect_data_series_options(self, ds: DataSeriesOption) -> bool:
-        if ds.data_series_id not in self._series:
+    def _register_option(self, ds: AssetOption) -> bool:
+        if ds.asset_id not in self.assets:
             # if the underlying doesn't exists
-            if ds.underlying.data_series_id not in self._series:
-                self.connect_data_series(ds.underlying)
+            if ds.underlying.asset_id not in self.assets:
+                self.register_asset(ds.underlying)
 
-            ibs = IBSeries(series_type=ds.data_series_type,
-                          contract=self._series[ds.underlying.data_series_id].contract,
-                          ibs_underlying_id=ds.underlying.data_series_id)
+            iba = IBAsset(asset_type=ds.asset_type,
+                          contract=self.assets[ds.underlying.asset_id].contract,
+                          iba_underlying_id=ds.underlying.asset_id)
 
-            self._series[ds.data_series_id] = ibs
+            self.assets[ds.asset_id] = iba
 
-    def disconnect_data_series(self) -> bool:
+    def unregister_asset(self) -> bool:
         pass
 
-    def update_data_series(self) -> None:
-        for ds in self._series:
-            self._fetch_data(self._series[ds])
+    def update_assets(self) -> None:
+        for ds in self.assets:
+            self._fetch_data_asset(self.assets[ds])
 
-    def _fetch_data(self, ibs: DataSeries) -> None:
-        if ibs.series_type == DataSeriesType.Index:
-            self._fetch_data_index(ibs)
-        if ibs.series_type == DataSeriesType.Option:
-            self._fecth_data_option(ibs)
+    def _fetch_data_asset(self, iba: IBAsset) -> None:
+        if iba.asset_type == AssetType.Index:
+            self._fetch_data_index(iba)
+        if iba.asset_type == AssetType.Option:
+            self._fecth_data_option(iba)
 
-    def _fetch_data_index(self, ibs: IBSeries) -> None:
-        [d] = self._broker.reqTickers(ibs.contract)
-        data_index = DataIndex(code=ibs.contract.symbol,
+    def _fetch_data_index(self, iba: IBAsset) -> None:
+        [d] = self._broker.reqTickers(iba.contract)
+        data_index = DataIndex(code=iba.contract.symbol,
                                high=d.high,
                                low=d.low,
                                close=d.close,
@@ -184,21 +183,21 @@ class IBDataAdapter(DataAdapter):
                                last=d.last,
                                last_size=d.lastSize,
                                time=d.time)
-        ibs.data=data_index
+        iba.data=data_index
 
 
-    def _fecth_data_option(self, ibs: IBSeries) -> None:
+    def _fecth_data_option(self, iba: IBAsset) -> None:
         #Ask for options chains
-        chains = self._broker.reqSecDefOptParams(ibs.contract.symbol,
+        chains = self._broker.reqSecDefOptParams(iba.contract.symbol,
                                                  '',
-                                                 ibs.contract.secType,
-                                                 ibs.contract.conId)
-        chain = next(c for c in chains if c.tradingClass == ibs.contract.symbol
+                                                 iba.contract.secType,
+                                                 iba.contract.conId)
+        chain = next(c for c in chains if c.tradingClass == iba.contract.symbol
                      and c.exchange == 'SMART')
         
         if chain:
             # Ask for last underlying price
-            u_price = self._series[ibs.ibs_underlying_id].data.market_price()
+            u_price = self.assets[iba.iba_underlying_id].data.market_price()
             
             # next three expiration dates
             expirations = sorted(exp for exp in chain.expirations)[:3]
@@ -210,7 +209,7 @@ class IBDataAdapter(DataAdapter):
             
             rights=['P','C']
         
-            contracts = [Option(ibs.contract.symbol,
+            contracts = [Option(iba.contract.symbol,
                                 expiration,
                                 strike,
                                 right,
@@ -267,7 +266,7 @@ class IBDataAdapter(DataAdapter):
                 # print(opt)
 
             # create a expiration dates dictionary
-            exp_dict={}
+            exp_dict = {}
             for e in expirations:
                 exp_dict[parse_ib_date(e)] = {}
                 for s in strikes:
@@ -281,7 +280,7 @@ class IBDataAdapter(DataAdapter):
                 else:
                     exp_dict[opt.expiration][opt.strike]['P'] = opt
     
-        ibs.data = DataOptionChain(ibs.contract.symbol, exp_dict)
+        iba.data = DataOptionChain(iba.contract.symbol, exp_dict)
 
     def _create_option_indicators(self,
                                   oc: OptionComputation) -> OptionIndicators:
@@ -296,13 +295,12 @@ class IBDataAdapter(DataAdapter):
                              underlying_dividends=oc.pvDividend)
            return i
 
-    def data(self, ds: DataSeries) -> object:
-        if ds.data_series_id not in self._series:
-            self.connect_data_series(ds)
-            self._fetch_data(self._series[ds.data_series_id])
+    def current(self, asset: Asset) -> object:
+        if asset.asset_id not in self.assets:
+            self.register_asset(asset)
+            self._fetch_data_asset(self.assets[asset.asset_id])
         
-        return self._series[ds.data_series_id].data
-
+        return self.assets[asset.asset_id].data
 
 def is_number(s: str) -> bool:
     try:

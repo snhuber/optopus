@@ -23,18 +23,7 @@ class OptionRight(Enum):
     Put = 'P'
 
 
-class DataSeriesType(Enum):
-    Stock = 'STK'
-    Option = 'OPT'
-    Future = 'FUT'
-    Forex = 'CASH'
-    Index = 'IND'
-    CFD = 'CFD'
-    Bond = 'BOND'
-    Commodity = 'CMDTY'
-    FuturesOption = 'FOP'
-    MutualFund = 'FUND'
-    Warrant = 'IOPT'
+
 
 
 IndexRecord = namedtuple('IndexRecord', 'code high low close\
@@ -169,6 +158,7 @@ class DataOption():
                             self.bid, self.bid_size, self.ask, self.ask_size, 
                             self.last, self.last_size, self.volume, self.time))
 
+
 StrikeRecord = namedtuple('StrikeRecord', 'code expiration strike\
                           c_high c_low c_close\
                           c_bid c_bid_size c_ask c_ask_size c_last c_last_size\
@@ -176,6 +166,8 @@ StrikeRecord = namedtuple('StrikeRecord', 'code expiration strike\
                           p_high p_low p_close\
                           p_bid p_bid_size p_ask p_ask_size p_last p_last_size\
                           p_volume p_time')
+
+
 class DataOptionChain():
     def __init__(self, code: str, data: dict) -> None:
         self.code = code
@@ -195,33 +187,41 @@ class DataOptionChain():
                 records.append(r)
         return(records)
 
-class DataSeries():
+class AssetType(Enum):
+    Stock = 'STK'
+    Option = 'OPT'
+    Future = 'FUT'
+    Forex = 'CASH'
+    Index = 'IND'
+    CFD = 'CFD'
+    Bond = 'BOND'
+    Commodity = 'CMDTY'
+    FuturesOption = 'FOP'
+    MutualFund = 'FUND'
+    Warrant = 'IOPT'
+
+class Asset():
     def __init__(self,
                  code: str,
-                 data_series_type: DataSeriesType,
+                 asset_type: AssetType,
                  data_source: DataSource) -> None:
         self.code = code
-        self.data_series_type = data_series_type
+        self.asset_type = asset_type
         self.data_source = data_source
 
     @property
-    def data_series_id(self) -> str:
-        return self.code + '_' + self.data_series_type.value
+    def asset_id(self) -> str:
+        return self.code + '_' + self.asset_type.value
 
 
-class DataSeriesIndex(DataSeries):
-    def __init__(self,
-                 code: str,
-                 data_source: DataSource) -> None:
-        super().__init__(code, DataSeriesType.Index, data_source)
+class AssetIndex(Asset):
+    def __init__(self, code: str, data_source: DataSource) -> None:
+        super().__init__(code, AssetType.Index, data_source)
 
 
-class DataSeriesOption(DataSeries):
-    def __init__(self, 
-                 underlying: DataSeries,
-                 max_expirations: int = None) -> None:
+class AssetOption(Asset):
+    def __init__(self, underlying: Asset) -> None:
         super().__init__(underlying.code,
-                         DataSeriesType.Option,
+                         AssetType.Option,
                          underlying.data_source)
         self.underlying = underlying
-
