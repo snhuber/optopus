@@ -2,7 +2,7 @@ import datetime
 from optopus.money import Money
 from optopus.order_manager import OrderManager
 from optopus.data_manager import DataManager
-from optopus.data_objects import DataSource, AssetIndex, AssetOption
+from optopus.data_objects import DataSource, IndexAsset, AssetOption
 from optopus.signal import Signal, RightType, ActionType
 from optopus.data_objects import AssetType
 from optopus.settings import CURRENCY
@@ -37,7 +37,9 @@ class DummyStrategy(Strategy):
                     Money('170', CURRENCY))
 
     def calculate_signals(self):
-        d = self._data_manager.current(self.SPX, ['high'])
+        f = ['high', 'low', 'close', 'bid', 'bid_size', 'ask', 'ask_size',
+             'last', 'last_size', 'time', 'midpoint', 'market_price']
+        d = self._data_manager.current(self.SPX, f)
         if d:
             print(d)
         else:

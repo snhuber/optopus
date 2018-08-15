@@ -28,8 +28,8 @@ class Optopus():
         
 
     def start(self) -> None:
-        self._start_strategies()
-        
+        # self._start_strategies()
+        pass
     def stop(self) -> None:
         pass
 
@@ -51,7 +51,7 @@ class Optopus():
         self.dummy.calculate_signals()
         
     def current(self, assets: Asset, fields: list) -> object:
-        return self._data_manager.curren(assets, fields)
+        return self._data_manager.current(assets, fields)
 
 
 

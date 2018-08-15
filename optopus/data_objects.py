@@ -12,10 +12,60 @@ def is_nan(x: float) -> bool:
     """
     return x != x
 
-
 class DataSource(Enum):
     IB = 'IB'
     Quandl = 'Quandl'
+
+
+class AssetType(Enum):
+    Stock = 'STK'
+    Option = 'OPT'
+    Future = 'FUT'
+    Forex = 'CASH'
+    Index = 'IND'
+    CFD = 'CFD'
+    Bond = 'BOND'
+    Commodity = 'CMDTY'
+    FuturesOption = 'FOP'
+    MutualFund = 'FUND'
+    Warrant = 'IOPT'
+
+
+class Asset():
+    def __init__(self,
+                 code: str,
+                 asset_type: AssetType,
+                 data_source: DataSource) -> None:
+        self.code = code
+        self.asset_type = asset_type
+        self.data_source = data_source
+
+    @property
+    def asset_id(self) -> str:
+        return self.code + '_' + self.asset_type.value
+
+
+class IndexAsset(Asset):
+    def __init__(self, code: str, data_source: DataSource) -> None:
+        super().__init__(code, AssetType.Index, data_source)
+
+
+class OptionChainAsset(Asset):
+    def __init__(self,
+                 code: str,
+                 underlying: Asset) -> None:
+        super().__init__(code, AssetType.Option, underlying.data_source)
+        self.underlying = underlying
+
+
+class AssetOption(Asset):
+    def __init__(self, underlying: Asset) -> None:
+        super().__init__(underlying.code,
+                         AssetType.Option,
+                         underlying.data_source)
+        self.underlying = underlying
+
+
 
 
 class OptionRight(Enum):
@@ -23,7 +73,10 @@ class OptionRight(Enum):
     Put = 'P'
 
 
-
+class OptionMoneyness(Enum):
+    AtTheMoney = 'ATM'
+    InTheMoney = 'ITM'
+    OutTheMoney = 'OTM'
 
 
 IndexRecord = namedtuple('IndexRecord', 'code high low close\
@@ -43,6 +96,7 @@ class DataIndex():
                  last_size: float = nan,
                  time: datetime.datetime = None) -> None:
         self.code = code
+        self.asset_type = AssetType.Index
         self.high = high
         self.low = low
         self.close = close
@@ -54,9 +108,10 @@ class DataIndex():
         self.last_size = last_size
         self.time = time
 
+    @property
     def midpoint(self) -> float:
         return(self.bid + self.ask) / 2
-
+    @property
     def market_price(self) -> float:
         """
         Return the first available one of:
@@ -64,7 +119,7 @@ class DataIndex():
         * average of bid and ask (midpoint);
         * close price.
         """
-        midpoint = self.midpoint()
+        midpoint = self.midpoint
         if (is_nan(midpoint) or self.bid <= self.last <= self.ask):
             price = self.last
         else:
@@ -99,7 +154,10 @@ class OptionIndicators():
                  option_price=nan,
                  implied_volatility=nan,
                  underlying_price=nan,
-                 underlying_dividends=nan) -> None:
+                 underlying_dividends=nan,
+                 moneyness=nan,
+                 intrinsic_value=nan,
+                 extrinsic_value=nan) -> None:
         self.delta = delta
         self.gamma = gamma
         self.theta = theta
@@ -108,6 +166,9 @@ class OptionIndicators():
         self.implied_volatility = implied_volatility
         self.underlying_price = underlying_price
         self.underlying_dividends = underlying_dividends
+        self.moneyness = moneyness
+        self.intrinsic_value = intrinsic_value
+        self.extrinsic_value = extrinsic_value
 
 
 class DataOption():
@@ -125,13 +186,21 @@ class DataOption():
                  ask_size=nan,
                  last=nan,
                  last_size=nan,
+                 option_price=nan,
                  volume=nan,
-                 indicators: OptionIndicators = None,
-                 bid_indicators: OptionIndicators = None,
-                 ask_indicators: OptionIndicators = None,
-                 last_indicators: OptionIndicators = None,
+                 delta=nan,
+                 gamma=nan,
+                 theta=nan,
+                 vega=nan,
+                 implied_volatility=nan,
+                 underlying_price=nan,
+                 underlying_dividends=nan,
+                 moneyness=nan,
+                 intrinsic_value=nan,
+                 extrinsic_value=nan,
                  time: datetime.datetime = None)-> None:
         self.code = code
+        self.asset_type = AssetType.Option
         self.expiration = expiration
         self.strike = strike
         self.right = right
@@ -144,11 +213,18 @@ class DataOption():
         self.ask_size = ask_size
         self.last = last
         self.last_size = last_size
+        self.option_price = option_price
         self.volume = volume
-        self.indicators = indicators
-        self.bid_indicators = bid_indicators
-        self.ask_indicators = ask_indicators
-        self.last_indicators = last_indicators
+        self.delta = delta
+        self.gamma = gamma
+        self.theta=theta
+        self.vega=vega
+        self.implied_volatility=implied_volatility
+        self.underlying_price=underlying_price
+        self.underlying_dividends=underlying_dividends
+        self.moneyness=moneyness
+        self.intrinsic_value = intrinsic_value
+        self.extrinsic_value = extrinsic_value
         self.time = time
 
     @property
@@ -172,6 +248,7 @@ class DataOptionChain():
     def __init__(self, code: str, data: dict) -> None:
         self.code = code
         self._data = data
+        self.asset_type = AssetType.Option
     @property
     def values(self):
         records=[]
@@ -187,41 +264,3 @@ class DataOptionChain():
                 records.append(r)
         return(records)
 
-class AssetType(Enum):
-    Stock = 'STK'
-    Option = 'OPT'
-    Future = 'FUT'
-    Forex = 'CASH'
-    Index = 'IND'
-    CFD = 'CFD'
-    Bond = 'BOND'
-    Commodity = 'CMDTY'
-    FuturesOption = 'FOP'
-    MutualFund = 'FUND'
-    Warrant = 'IOPT'
-
-class Asset():
-    def __init__(self,
-                 code: str,
-                 asset_type: AssetType,
-                 data_source: DataSource) -> None:
-        self.code = code
-        self.asset_type = asset_type
-        self.data_source = data_source
-
-    @property
-    def asset_id(self) -> str:
-        return self.code + '_' + self.asset_type.value
-
-
-class AssetIndex(Asset):
-    def __init__(self, code: str, data_source: DataSource) -> None:
-        super().__init__(code, AssetType.Index, data_source)
-
-
-class AssetOption(Asset):
-    def __init__(self, underlying: Asset) -> None:
-        super().__init__(underlying.code,
-                         AssetType.Option,
-                         underlying.data_source)
-        self.underlying = underlying
