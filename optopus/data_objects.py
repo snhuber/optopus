@@ -52,10 +52,13 @@ class IndexAsset(Asset):
 
 class OptionChainAsset(Asset):
     def __init__(self,
-                 code: str,
-                 underlying: Asset) -> None:
-        super().__init__(code, AssetType.Option, underlying.data_source)
+                 underlying: Asset,
+                 n_expiration_dates: int = 2,
+                 underlying_distance: float = 1) -> None:
+        super().__init__(underlying.code, AssetType.Option, underlying.data_source)
         self.underlying = underlying
+        self.n_expiration_dates = n_expiration_dates
+        self.underlying_distance = underlying_distance
 
 
 class AssetOption(Asset):

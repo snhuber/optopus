@@ -41,11 +41,12 @@ of = ['delta', 'gamma', 'theta', 'vega',
       'implied_volatility', 'underlying_price', 'underlying_dividens',
       'moneyness', 'intrinsic_value', 'extrinsic_value', 'time']
 
-SPT_OPT = OptionChainAsset('SPX_OPT', SPX)
+SPX_OPT = OptionChainAsset(SPX, underlying_distance=1.5)
+print(pdo(opt.current([SPX_OPT], of)))
 
-print(pdo(opt.current([SPT_OPT], of)))
+opt.update_assets()
 
-
+print(pdo(opt.current([SPX_OPT], of)))
 
 #for t in ib.timeRange(datetime.time(0, 0), datetime.datetime(2100, 1, 1, 0), 10):
 #    print(t)

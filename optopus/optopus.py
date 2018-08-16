@@ -53,6 +53,8 @@ class Optopus():
     def current(self, assets: Asset, fields: list) -> object:
         return self._data_manager.current(assets, fields)
 
+    def update_assets(self) -> None:
+        self._data_manager.update_assets()
 
 
 

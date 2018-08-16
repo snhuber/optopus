@@ -30,7 +30,7 @@ class DataManager():
         # All the assests have the same type
         if not all([t.asset_type == assets[0].asset_type for t in assets]):
             raise ValueError('There are more than one type of asset')
-        
+
         for asset in assets:
             data = self._data_adapters[asset.data_source].current(asset)
             for e in data:

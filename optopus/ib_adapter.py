@@ -53,10 +53,11 @@ class IBIndexAsset(IndexAsset):
 
 class IBOptionChainAsset(OptionChainAsset):
     def __init__(self,
-                 code: str,
                  underlying: Asset,
-                 contract: Contract) -> None:
-        super().__init__(code, underlying)
+                 contract: Contract,
+                 n_expiration_dates: int,
+                 underlying_distance: float) -> None:
+        super().__init__(underlying, n_expiration_dates, underlying_distance)
         self.contract = contract
         self._data = None
 
@@ -183,9 +184,10 @@ class IBDataAdapter(DataAdapter):
             if asset.underlying.asset_id not in self.assets:
                 self.register_asset(asset.underlying)
 
-            iba = IBOptionChainAsset(code=asset.code,
-                                     underlying=asset.underlying,
-                                     contract=self.assets[asset.underlying.asset_id].contract)
+            iba = IBOptionChainAsset(underlying=asset.underlying,
+                                     contract=self.assets[asset.underlying.asset_id].contract,
+                                     n_expiration_dates=asset.n_expiration_dates,
+                                     underlying_distance=asset.underlying_distance)
 
             self.assets[asset.asset_id] = iba
 
@@ -227,14 +229,14 @@ class IBDataAdapter(DataAdapter):
             # Ask for last underlying price
             u_price = self.assets[iba.underlying.asset_id].market_price
 
-            # next three expiration dates
-            expirations = sorted(exp for exp in chain.expirations)[:3]
-
-            min_strike_price = u_price * 0.99  # underlying price - 2%
-            max_strike_price = u_price * 1.01  # underlying price + 2%
+            # next n expiration dates
+            expirations = sorted(exp for exp in chain.expirations)[:iba.n_expiration_dates]
+            # underlying price - %distance
+            min_strike_price = u_price * ((100 - iba.underlying_distance)/100)  
+            # underlying price + %distance
+            max_strike_price = u_price * ((100 + iba.underlying_distance)/100)  
             strikes = sorted(strike for strike in chain.strikes
                        if min_strike_price < strike < max_strike_price)
-
             rights=['P','C']
             # Create the options contracts
             contracts = [Option(iba.contract.symbol,
@@ -255,11 +257,11 @@ class IBDataAdapter(DataAdapter):
             #print("Option ", q_contracts[0])
             
             tickers=[]
-            print("Unqualified contracts:", len(contracts) - len(q_contracts))
+            print("Contracts: {} Unqualified: {}".
+                  format(len(contracts), len(contracts) - len(q_contracts)))
             for q in chunks(q_contracts, 50):
                 tickers+=self._broker.reqTickers(*q)
-                self._broker.sleep(2)
-                print('+')
+                self._broker.sleep(1)
             
             options = []
             for t in tickers:
@@ -299,7 +301,7 @@ class IBDataAdapter(DataAdapter):
                         ask_size=t.askSize,
                         last=t.last,
                         last_size=t.lastSize,
-                        option_price=option_price,
+                        option_price=option_price[0],
                         volume=t.volume,
                         delta=delta[0],
                         gamma=gamma[0],
@@ -382,7 +384,7 @@ class IBDataAdapter(DataAdapter):
         if asset.asset_id not in self.assets:
             self.register_asset(asset)
             self._fetch_data_asset(self.assets[asset.asset_id])
-        
+  
         return self.assets[asset.asset_id].data
 
 def is_number(s: str) -> bool:
