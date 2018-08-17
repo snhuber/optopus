@@ -31,6 +31,17 @@ class AssetType(Enum):
     Warrant = 'IOPT'
 
 
+class OptionRight(Enum):
+    Call = 'C'
+    Put = 'P'
+
+
+class OptionMoneyness(Enum):
+    AtTheMoney = 'ATM'
+    InTheMoney = 'ITM'
+    OutTheMoney = 'OTM'
+
+
 class Asset():
     def __init__(self,
                  code: str,
@@ -61,32 +72,8 @@ class OptionChainAsset(Asset):
         self.underlying_distance = underlying_distance
 
 
-class AssetOption(Asset):
-    def __init__(self, underlying: Asset) -> None:
-        super().__init__(underlying.code,
-                         AssetType.Option,
-                         underlying.data_source)
-        self.underlying = underlying
-
-
-
-
-class OptionRight(Enum):
-    Call = 'C'
-    Put = 'P'
-
-
-class OptionMoneyness(Enum):
-    AtTheMoney = 'ATM'
-    InTheMoney = 'ITM'
-    OutTheMoney = 'OTM'
-
-
-IndexRecord = namedtuple('IndexRecord', 'code high low close\
-               bid bid_size ask ask_size last last_size time')
-
 class DataIndex():
-    def __init__(self,               
+    def __init__(self,
                  code: str,
                  high: float = nan,
                  low: float = nan,
@@ -133,19 +120,6 @@ class DataIndex():
         if is_nan(price) or price == -1:
             price = self.close
         return price
-
-    @property
-    def values(self):
-        return(IndexRecord(self.code, self.last, self.last_size, self.high,
-                           self.low, self.close, self.bid, self.bid_size,
-                           self.ask, self.ask_size, self.time))
-
-
-# https://interactivebrokers.github.io/tws-api/rtd_simple_syntax.html#rtd_simple_syntax_basic_ticks
-OptionRecord = namedtuple('OptionRecord', 'code expiration strike righ\
-                          high low close\
-                          bid bid_size ask ask_size last last_size volume\
-                          time')
 
 
 class OptionIndicators():
@@ -220,50 +194,12 @@ class DataOption():
         self.volume = volume
         self.delta = delta
         self.gamma = gamma
-        self.theta=theta
-        self.vega=vega
-        self.implied_volatility=implied_volatility
-        self.underlying_price=underlying_price
-        self.underlying_dividends=underlying_dividends
-        self.moneyness=moneyness
+        self.theta = theta
+        self.vega = vega
+        self.implied_volatility = implied_volatility
+        self.underlying_price = underlying_price
+        self.underlying_dividends = underlying_dividends
+        self.moneyness = moneyness
         self.intrinsic_value = intrinsic_value
         self.extrinsic_value = extrinsic_value
         self.time = time
-
-    @property
-    def values(self):
-        return(OptionRecord(self.code, self.expiration, self.strike, self.right,
-                            self.high, self.low, self.close, 
-                            self.bid, self.bid_size, self.ask, self.ask_size, 
-                            self.last, self.last_size, self.volume, self.time))
-
-
-StrikeRecord = namedtuple('StrikeRecord', 'code expiration strike\
-                          c_high c_low c_close\
-                          c_bid c_bid_size c_ask c_ask_size c_last c_last_size\
-                          c_volume c_time\
-                          p_high p_low p_close\
-                          p_bid p_bid_size p_ask p_ask_size p_last p_last_size\
-                          p_volume p_time')
-
-
-class DataOptionChain():
-    def __init__(self, code: str, data: dict) -> None:
-        self.code = code
-        self._data = data
-        self.asset_type = AssetType.Option
-    @property
-    def values(self):
-        records=[]
-        for exp, vexp in self._data.items():
-            for s, sv in vexp.items():
-                r = StrikeRecord(self.code, exp, s,
-                                 sv['C'].high, sv['C'].low, sv['C'].close,
-                                 sv['C'].bid, sv['C'].bid_size, sv['C'].ask, sv['C'].ask_size,
-                                 sv['C'].last, sv['C'].last_size, sv['C'].volume, sv['C'].time,
-                                 sv['P'].high, sv['P'].low, sv['P'].close,
-                                 sv['P'].bid, sv['P'].bid_size, sv['P'].ask, sv['P'].ask_size,
-                                 sv['P'].last, sv['P'].last_size, sv['P'].volume, sv['P'].time)
-                records.append(r)
-        return(records)
-

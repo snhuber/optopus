@@ -16,10 +16,10 @@ from ib_insync.contract import Contract
 
 from optopus.account import AccountItem
 from optopus.money import Money
-from optopus.data_objects import (AssetType, Asset, 
+from optopus.data_objects import (AssetType, Asset,
                                   IndexAsset, OptionChainAsset,
                                   DataIndex, DataOption, OptionIndicators,
-                                  DataOptionChain, OptionRight, DataSource,
+                                  OptionRight, DataSource,
                                   OptionMoneyness, nan)
 from optopus.data_manager import DataAdapter
 from optopus.settings import CURRENCY
@@ -69,12 +69,11 @@ class IBOptionChainAsset(OptionChainAsset):
     def data(self, values):
         self._data = values
 
+
 class IBBrokerAdapter:
     """Class implementing the Interactive Brokers interface"""
 
     def __init__(self, ib: IB) -> None:
-        
-
         self._broker = ib
         self._translator = IBTranslator()
         self._data_adapter = IBDataAdapter(self._broker)
@@ -105,7 +104,7 @@ class IBTranslator:
         self._account_translation = {'AccountCode': 'id',
                                      'AvailableFunds': 'funds',
                                      'BuyingPower': 'buying_power',
-                                     'CashBalance': 'cash', 
+                                     'CashBalance': 'cash',
                                      'DayTradesRemaining': 'max_day_trades'}
 
     def translate_from_IB(self,
@@ -154,10 +153,9 @@ class IBDataAdapter(DataAdapter):
 
     def register_asset(self, asset: Asset) -> bool:
         if asset.asset_type == AssetType.Index:
-           self._register_index(asset)
+            self._register_index(asset)
         elif asset.asset_type == AssetType.Option:
-           self._register_option(asset) 
-        
+            self._register_option(asset)
 
     def _register_index(self, asset: IndexAsset) -> bool:
         started = False
@@ -171,8 +169,6 @@ class IBDataAdapter(DataAdapter):
                                        contract=q_contract[0])
 
                     self.assets[asset.asset_id] = iba
-                    #self._data_series[idx] = {'data_series': ds,
-                    #                          'contract': q_contract[0]}
                     started = True
                 else:
                     raise ValueError('Error: multiple contracts')
@@ -247,29 +243,27 @@ class IBDataAdapter(DataAdapter):
                                 for right in rights
                                 for expiration in expirations
                                 for strike in strikes]
-        
-            
-            q_contracts=[]
+
+            q_contracts = []
             # IB has a limit of 50 requests per second
             for c in chunks(contracts, 50):
-                q_contracts+=self._broker.qualifyContracts(*c)
+                q_contracts += self._broker.qualifyContracts(*c)
                 self._broker.sleep(2)
-            #print("Option ", q_contracts[0])
-            
-            tickers=[]
+
+            tickers = []
             print("Contracts: {} Unqualified: {}".
                   format(len(contracts), len(contracts) - len(q_contracts)))
             for q in chunks(q_contracts, 50):
-                tickers+=self._broker.reqTickers(*q)
+                tickers += self._broker.reqTickers(*q)
                 self._broker.sleep(1)
-            
+
             options = []
             for t in tickers:
                 # There others Greeks for bid, ask and last prices
                 delta = gamma = theta = vega = option_price = \
                 implied_volatility = underlying_price = \
                 underlying_dividends = nan
-                
+
                 if t.modelGreeks:
                     delta = t.modelGreeks.delta,
                     gamma = t.modelGreeks.gamma,
@@ -279,14 +273,14 @@ class IBDataAdapter(DataAdapter):
                     implied_volatility = t.modelGreeks.impliedVol,
                     underlying_price = t.modelGreeks.undPrice,
                     underlying_dividends = t.modelGreeks.pvDividend
-        
-                    moneyness, intrinsic_value, extrinsic_value = \
-                    self._calculate_moneyness(t.contract.strike,
-                                              option_price[0],
-                                              underlying_price[0],
-                                              t.contract.right)   
 
-                    
+                    if underlying_price[0]:
+                        moneyness, intrinsic_value, extrinsic_value = \
+                        self._calculate_moneyness(t.contract.strike,
+                                                  option_price[0],
+                                                  underlying_price[0],
+                                                  t.contract.right)
+     
                 opt = DataOption(
                         code=t.contract.symbol,
                         expiration=parse_ib_date(t.contract.lastTradeDateOrContractMonth),
@@ -316,34 +310,17 @@ class IBDataAdapter(DataAdapter):
                         time=t.time)
 
                 options.append(opt)
-                # print(opt)
 
-            # create a expiration dates dictionary
-            #exp_dict = {}
-            #for e in expirations:
-            #    exp_dict[parse_ib_date(e)] = {}
-            #    for s in strikes:
-            #        exp_dict[parse_ib_date(e)][s] = {'C': None,
-            #                                         'P': None}
-
-            # adding options in their expiration date slot
-            #for opt in options:
-            #    if opt.right == OptionRight.Call:
-            #        exp_dict[opt.expiration][opt.strike]['C'] = opt
-            #    else:
-            #        exp_dict[opt.expiration][opt.strike]['P'] = opt
-    
-        #iba.data = DataOptionChain(iba.contract.symbol, exp_dict)
         iba.data = options
 
     def _calculate_moneyness(self, strike: float,
                              option_price: float,
                              underlying_price: float, 
                              right: str) -> OptionMoneyness:
-        
+
         intrinsic_value = 0;
         extrinsic_value = 0;
-        
+
         if right == 'C':
             intrinsic_value = max(0, underlying_price - strike)
             if underlying_price > strike:                
@@ -352,7 +329,7 @@ class IBDataAdapter(DataAdapter):
                 moneyness = OptionMoneyness.OutTheMoney
             else:
                 moneyness = OptionMoneyness.InTheMoney
-            
+
         if right == 'P':
             intrinsic_value = max(0, strike - underlying_price)
             if underlying_price < strike:
@@ -361,31 +338,31 @@ class IBDataAdapter(DataAdapter):
                 moneyness = OptionMoneyness.OutTheMoney
             else:
                 moneyness = OptionMoneyness.InTheMoney
-            
+
         extrinsic_value = option_price - intrinsic_value
-        
+
         return moneyness, intrinsic_value, extrinsic_value
-            
 
     def _create_option_indicators(self,
                                   oc: OptionComputation) -> OptionIndicators:
-       if oc:
-           i = OptionIndicators(delta=oc.delta,
-                             gamma=oc.gamma,
-                             theta=oc.theta,
-                             vega=oc.vega,
-                             option_price=oc.optPrice,
-                             implied_volatility=oc.impliedVol,
-                             underlying_price=oc.undPrice,
-                             underlying_dividends=oc.pvDividend)
-           return i
+        if oc:
+            i = OptionIndicators(delta=oc.delta,
+                                 gamma=oc.gamma,
+                                 theta=oc.theta,
+                                 vega=oc.vega,
+                                 option_price=oc.optPrice,
+                                 implied_volatility=oc.impliedVol,
+                                 underlying_price=oc.undPrice,
+                                 underlying_dividends=oc.pvDividend)
+            return i
 
     def current(self, asset: Asset) -> object:
         if asset.asset_id not in self.assets:
             self.register_asset(asset)
             self._fetch_data_asset(self.assets[asset.asset_id])
-  
+
         return self.assets[asset.asset_id].data
+
 
 def is_number(s: str) -> bool:
     try:
@@ -394,11 +371,13 @@ def is_number(s: str) -> bool:
     except Exception as e:
         return False
 
+
 def chunks(l: list, n: int) -> list:
     # For item i in a range that is a lenght of l
     for i in range(0, len(l), n):
         # Create an index range for l of n items:
         yield l[i:i+n]
+
 
 def parse_ib_date(s: str) -> datetime.date:
     if len(s) == 8:

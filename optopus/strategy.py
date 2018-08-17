@@ -2,7 +2,7 @@ import datetime
 from optopus.money import Money
 from optopus.order_manager import OrderManager
 from optopus.data_manager import DataManager
-from optopus.data_objects import DataSource, IndexAsset, AssetOption
+from optopus.data_objects import DataSource, IndexAsset
 from optopus.signal import Signal, RightType, ActionType
 from optopus.data_objects import AssetType
 from optopus.settings import CURRENCY
