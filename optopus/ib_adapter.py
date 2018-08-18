@@ -16,13 +16,12 @@ from ib_insync.contract import Contract
 
 from optopus.account import AccountItem
 from optopus.money import Money
-from optopus.data_objects import (AssetType, Asset,
-                                  IndexAsset, OptionChainAsset,
-                                  DataIndex, DataOption, OptionIndicators,
+from optopus.data_objects import (AssetType, Asset, IndexAsset, IndexData,
+                                  OptionChainAsset, OptionData, OptionIndicators,
                                   OptionRight, DataSource,
-                                  OptionMoneyness, nan)
+                                  OptionMoneyness, BarDataType, BarData, nan)
 from optopus.data_manager import DataAdapter
-from optopus.settings import CURRENCY
+from optopus.settings import CURRENCY, HISTORICAL_DAYS
 
 
 class IBObject(Enum):
@@ -37,19 +36,25 @@ class IBIndexAsset(IndexAsset):
                  contract: Contract) -> None:
         super().__init__(code, data_source)
         self.contract = contract
-        self._data = None
+        self._historical_data_updated = None
+        self._historical_IV_data_updated = None
 
-    @property
-    def data(self):
-        return [self._data]
+    def historical_data_is_updated(self) -> bool:
+        if self._historical_data_updated:
+            delta = datetime.datetime.now() - self._historical_data_updated
+            if delta.days:
+                return True
+            else:
+                return False
 
-    @data.setter
-    def data(self, values):
-        self._data = values
+    def historical_IV_data_is_updated(self) -> bool:
+        if self._historical_IV_data_updated:
+            delta = datetime.datetime.now() - self._historical_IV_data_updated
+            if delta.days:
+                return True
+            else:
+                return False
 
-    @property
-    def market_price(self):
-        return self._data.market_price
 
 class IBOptionChainAsset(OptionChainAsset):
     def __init__(self,
@@ -59,15 +64,6 @@ class IBOptionChainAsset(OptionChainAsset):
                  underlying_distance: float) -> None:
         super().__init__(underlying, n_expiration_dates, underlying_distance)
         self.contract = contract
-        self._data = None
-
-    @property
-    def data(self):
-        return self._data
-
-    @data.setter
-    def data(self, values):
-        self._data = values
 
 
 class IBBrokerAdapter:
@@ -113,7 +109,6 @@ class IBTranslator:
                           ib_tag: str,
                           ib_value: object,
                           ib_currency: str) -> AccountItem:
-        # print(ib_tag, ' ', ib_value, ' ', ib_currency)
         if ib_object == IBObject.account:
                 opt_money = None
                 opt_value = None
@@ -151,13 +146,7 @@ class IBDataAdapter(DataAdapter):
         self.assets = {}
         self._contracts = {}
 
-    def register_asset(self, asset: Asset) -> bool:
-        if asset.asset_type == AssetType.Index:
-            self._register_index(asset)
-        elif asset.asset_type == AssetType.Option:
-            self._register_option(asset)
-
-    def _register_index(self, asset: IndexAsset) -> bool:
+    def register_index(self, asset: IndexAsset) -> bool:
         started = False
         if asset.asset_id not in self.assets:
                 contract = Index(asset.code)
@@ -174,7 +163,7 @@ class IBDataAdapter(DataAdapter):
                     raise ValueError('Error: multiple contracts')
         return started
 
-    def _register_option(self, asset: OptionChainAsset) -> bool:
+    def register_option(self, asset: OptionChainAsset) -> bool:
         if asset.asset_id not in self.assets:
             # if the underlying doesn't exists
             if asset.underlying.asset_id not in self.assets:
@@ -187,19 +176,10 @@ class IBDataAdapter(DataAdapter):
 
             self.assets[asset.asset_id] = iba
 
-    def update_assets(self) -> None:
-        for asset in self.assets:
-            self._fetch_data_asset(self.assets[asset])
-
-    def _fetch_data_asset(self, iba: Asset) -> None:
-        if iba.asset_type == AssetType.Index:
-            self._fetch_data_index(iba)
-        if iba.asset_type == AssetType.Option:
-            self._fecth_data_option(iba)
-
-    def _fetch_data_index(self, iba: IBIndexAsset) -> None:
+    def fetch_current_data_index(self, asset: Asset) -> object:
+        iba = self.assets[asset.asset_id]
         [d] = self._broker.reqTickers(iba.contract)
-        data_index = DataIndex(code=iba.contract.symbol,
+        data_index = IndexData(code=iba.contract.symbol,
                                high=d.high,
                                low=d.low,
                                close=d.close,
@@ -210,10 +190,11 @@ class IBDataAdapter(DataAdapter):
                                last=d.last,
                                last_size=d.lastSize,
                                time=d.time)
-        iba.data = data_index
+        return data_index
 
-    def _fecth_data_option(self, iba: IBOptionChainAsset) -> None:
+    def fecth_current_data_option(self, asset: Asset) -> object:
         # Ask for options chains
+        iba = self.assets[asset.asset_id]
         chains = self._broker.reqSecDefOptParams(iba.contract.symbol,
                                                  '',
                                                  iba.contract.secType,
@@ -264,24 +245,26 @@ class IBDataAdapter(DataAdapter):
                 implied_volatility = underlying_price = \
                 underlying_dividends = nan
 
-                if t.modelGreeks:
-                    delta = t.modelGreeks.delta,
-                    gamma = t.modelGreeks.gamma,
-                    theta = t.modelGreeks.theta,
-                    vega = t.modelGreeks.vega,
-                    option_price = t.modelGreeks.optPrice,
-                    implied_volatility = t.modelGreeks.impliedVol,
-                    underlying_price = t.modelGreeks.undPrice,
-                    underlying_dividends = t.modelGreeks.pvDividend
+                if t.modelGreeks:                    
 
-                    if underlying_price[0]:
+                    delta = t.modelGreeks.delta
+                    gamma = t.modelGreeks.gamma
+                    theta = t.modelGreeks.theta
+                    vega = t.modelGreeks.vega
+                    option_price = t.modelGreeks.optPrice
+                    implied_volatility = t.modelGreeks.impliedVol
+                    underlying_price = t.modelGreeks.undPrice
+                    underlying_dividends = t.modelGreeks.pvDividend
+                        
+                    moneyness = intrinsic_value = extrinsic_value = nan
+                    if underlying_price:
                         moneyness, intrinsic_value, extrinsic_value = \
                         self._calculate_moneyness(t.contract.strike,
-                                                  option_price[0],
-                                                  underlying_price[0],
+                                                  option_price,
+                                                  underlying_price,
                                                   t.contract.right)
-     
-                opt = DataOption(
+
+                opt = OptionData(
                         code=t.contract.symbol,
                         expiration=parse_ib_date(t.contract.lastTradeDateOrContractMonth),
                         strike=t.contract.strike,
@@ -295,14 +278,14 @@ class IBDataAdapter(DataAdapter):
                         ask_size=t.askSize,
                         last=t.last,
                         last_size=t.lastSize,
-                        option_price=option_price[0],
+                        option_price=option_price,
                         volume=t.volume,
-                        delta=delta[0],
-                        gamma=gamma[0],
-                        theta=theta[0],
-                        vega=vega[0],
-                        implied_volatility=implied_volatility[0],
-                        underlying_price=underlying_price[0],
+                        delta=delta,
+                        gamma=gamma,
+                        theta=theta,
+                        vega=vega,
+                        implied_volatility=implied_volatility,
+                        underlying_price=underlying_price,
                         underlying_dividends=underlying_dividends,
                         moneyness=moneyness.value,
                         intrinsic_value = intrinsic_value,
@@ -311,15 +294,14 @@ class IBDataAdapter(DataAdapter):
 
                 options.append(opt)
 
-        iba.data = options
+        return options
 
     def _calculate_moneyness(self, strike: float,
                              option_price: float,
                              underlying_price: float, 
                              right: str) -> OptionMoneyness:
 
-        intrinsic_value = 0;
-        extrinsic_value = 0;
+        intrinsic_value = extrinsic_value = 0
 
         if right == 'C':
             intrinsic_value = max(0, underlying_price - strike)
@@ -343,26 +325,47 @@ class IBDataAdapter(DataAdapter):
 
         return moneyness, intrinsic_value, extrinsic_value
 
-    def _create_option_indicators(self,
-                                  oc: OptionComputation) -> OptionIndicators:
-        if oc:
-            i = OptionIndicators(delta=oc.delta,
-                                 gamma=oc.gamma,
-                                 theta=oc.theta,
-                                 vega=oc.vega,
-                                 option_price=oc.optPrice,
-                                 implied_volatility=oc.impliedVol,
-                                 underlying_price=oc.undPrice,
-                                 underlying_dividends=oc.pvDividend)
-            return i
+    def _process_bars(self, code: str, ibbars: list) -> list:
+        bars = []
+        for ibb in ibbars:
+            b = BarData(code=code,
+                        bar_time=ibb.date,
+                        bar_open=ibb.open,
+                        bar_high=ibb.high,
+                        bar_low=ibb.low,
+                        bar_close=ibb.close,
+                        bar_average=ibb.average,
+                        bar_count=ibb.barCount)
+            bars.append(b)
+        return bars
 
-    def current(self, asset: Asset) -> object:
-        if asset.asset_id not in self.assets:
-            self.register_asset(asset)
-            self._fetch_data_asset(self.assets[asset.asset_id])
+    def fetch_historical_data_asset(self, asset: Asset) -> None:
+        iba = self.assets[asset.asset_id]
+        if iba.asset_type == AssetType.Index:
+            if not iba.historical_data_is_updated():
+                duration = str(HISTORICAL_DAYS) + ' D'
+                bars = self._broker.reqHistoricalData(iba.contract,
+                                                      endDateTime='',
+                                                      durationStr=duration,
+                                                      barSizeSetting='1 day',
+                                                      whatToShow='TRADES',
+                                                      useRTH=True,
+                                                      formatDate=1)
+                return self._process_bars(iba.code, bars)
 
-        return self.assets[asset.asset_id].data
-
+    def fetch_historical_IV_data_asset(self, asset: Asset) -> None:
+        iba = self.assets[asset.asset_id]
+        if iba.asset_type == AssetType.Index:
+            if not iba.historical_IV_data_is_updated():
+                duration = str(HISTORICAL_DAYS) + ' D'
+                bars = self._broker.reqHistoricalData(iba.contract,
+                                                      endDateTime='',
+                                                      durationStr=duration,
+                                                      barSizeSetting='1 day',
+                                                      whatToShow='OPTION_IMPLIED_VOLATILITY',
+                                                      useRTH=True,
+                                                      formatDate=1)
+                return self._process_bars(iba.code, bars)
 
 def is_number(s: str) -> bool:
     try:
@@ -387,3 +390,9 @@ def parse_ib_date(s: str) -> datetime.date:
         d = int(s[6:8])
         dt = datetime.date(y, m, d)
     return dt
+
+def flatten_value(self, value) -> object:
+    if isinstance(value, tuple):
+        return value[0]
+    else:
+        return value

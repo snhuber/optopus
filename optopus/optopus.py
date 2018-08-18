@@ -7,7 +7,7 @@ Created on Sat Aug  4 16:30:25 2018
 """
 from optopus.account import Account, AccountItem
 from optopus.data_manager import DataManager, DataSource
-from optopus.data_objects import Asset
+from optopus.data_objects import Asset, BarDataType
 from optopus.strategy import DummyStrategy
 
 class Optopus():
@@ -49,14 +49,22 @@ class Optopus():
         print('.')
         self._data_manager.update_assets()
         self.dummy.calculate_signals()
-        
+
     def current(self, assets: Asset, fields: list) -> object:
         return self._data_manager.current(assets, fields)
 
     def update_assets(self) -> None:
         self._data_manager.update_assets()
 
-
-
-
-
+    def historical(self, assets: list, fields: list) -> object:
+        return self._data_manager.historical(assets, fields, BarDataType.Trades)
+    
+    def historical_IV(self, assets: list, fields: list) -> object:
+        return self._data_manager.historical(assets, fields, BarDataType.IV)
+    
+    def IV_rank(self, asset: Asset, IV_value: float) -> float:
+        return self._data_manager.IV_rank(asset, IV_value)
+    
+    def IV_percentile(self, asset: Asset, IV_value: float) -> float:
+        return self._data_manager.IV_percentile(asset, IV_value)
+        

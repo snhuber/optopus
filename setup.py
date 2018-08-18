@@ -1,7 +1,7 @@
 import os
 import sys
 import codecs
-from setuptools import setup
+from setuptools import setup, find_packages
 
 if sys.version_info < (3, 6, 0):
     raise RuntimeError("optopus requires Python 3.6 or higher")
@@ -33,5 +33,5 @@ setup(
         'Programming Language :: Python :: 3 :: Only',
     ],
     keywords='ibapi asyncio jupyter interactive brokers async',
-    packages=['optopus']
+    packages=find_packages(exclude=['data', 'notebooks']),
 )

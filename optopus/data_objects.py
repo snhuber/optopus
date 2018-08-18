@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 from enum import Enum
 import datetime
-from collections import namedtuple
+
 
 nan = float('nan')
 
@@ -11,6 +11,7 @@ def is_nan(x: float) -> bool:
     Not a number test.
     """
     return x != x
+
 
 class DataSource(Enum):
     IB = 'IB'
@@ -61,6 +62,44 @@ class IndexAsset(Asset):
         super().__init__(code, AssetType.Index, data_source)
 
 
+class IndexDataAsset(IndexAsset):
+    def __init__(self, code: str, data_source: DataSource) -> None:
+        super().__init__(code, data_source)
+        self._data = None
+        self._historical_data = None
+        self._historical_IV_data = None
+
+    @property
+    def current_data(self):
+        return [self._data]
+
+    @current_data.setter
+    def current_data(self, values):
+        self._data = values
+
+    @property
+    def historical_data(self):
+        return self._historical_data
+
+    @historical_data.setter
+    def historical_data(self, values):
+        self._historical_data = values
+        self._historical_data_updated = datetime.datetime.now()
+
+    @property
+    def historical_IV_data(self):
+        return self._historical_IV_data
+
+    @historical_IV_data.setter
+    def historical_IV_data(self, values):
+        self._historical_IV_data = values
+        self._historical_data_updated = datetime.datetime.now()
+
+    @property
+    def market_price(self):
+        return self._data.market_price
+
+
 class OptionChainAsset(Asset):
     def __init__(self,
                  underlying: Asset,
@@ -72,7 +111,24 @@ class OptionChainAsset(Asset):
         self.underlying_distance = underlying_distance
 
 
-class DataIndex():
+class OptionChainDataAsset(OptionChainAsset):
+    def __init__(self,
+                 underlying: Asset,
+                 n_expiration_dates: int = 3,
+                 underlying_distance: float = 1) -> None:
+        super().__init__(underlying, n_expiration_dates, underlying_distance)
+        self._data = None
+
+    @property
+    def current_data(self):
+        return self._data
+
+    @current_data.setter
+    def current_data(self, values):
+        self._data = values
+
+
+class IndexData():
     def __init__(self,
                  code: str,
                  high: float = nan,
@@ -101,6 +157,7 @@ class DataIndex():
     @property
     def midpoint(self) -> float:
         return(self.bid + self.ask) / 2
+
     @property
     def market_price(self) -> float:
         """
@@ -148,33 +205,33 @@ class OptionIndicators():
         self.extrinsic_value = extrinsic_value
 
 
-class DataOption():
+class OptionData():
     def __init__(self,
                  code: str,
                  expiration: datetime.date,
                  strike: int,
                  right: OptionRight,
-                 high=nan,
-                 low=nan,
-                 close=nan,
-                 bid=nan,
-                 bid_size=nan,
-                 ask=nan,
-                 ask_size=nan,
-                 last=nan,
-                 last_size=nan,
-                 option_price=nan,
-                 volume=nan,
-                 delta=nan,
-                 gamma=nan,
-                 theta=nan,
-                 vega=nan,
-                 implied_volatility=nan,
-                 underlying_price=nan,
-                 underlying_dividends=nan,
-                 moneyness=nan,
-                 intrinsic_value=nan,
-                 extrinsic_value=nan,
+                 high: float = nan,
+                 low: float = nan,
+                 close: float = nan,
+                 bid: float = nan,
+                 bid_size: float = nan,
+                 ask: float = nan,
+                 ask_size: float = nan,
+                 last: float = nan,
+                 last_size: float = nan,
+                 option_price: float = nan,
+                 volume: float = nan,
+                 delta: float = nan,
+                 gamma: float = nan,
+                 theta: float = nan,
+                 vega: float = nan,
+                 implied_volatility: float = nan,
+                 underlying_price: float = nan,
+                 underlying_dividends: float = nan,
+                 moneyness: float = nan,
+                 intrinsic_value: float = nan,
+                 extrinsic_value: float = nan,
                  time: datetime.datetime = None)-> None:
         self.code = code
         self.asset_type = AssetType.Option
@@ -203,3 +260,30 @@ class DataOption():
         self.intrinsic_value = intrinsic_value
         self.extrinsic_value = extrinsic_value
         self.time = time
+
+
+class BarDataType(Enum):
+    Trades = 'TRADES'
+    IV = 'IMPLIED_VOLATILITY'
+
+
+class BarData():
+    def __init__(self,
+                 code: str,
+                 bar_time: float = nan,
+                 bar_open: float = nan,
+                 bar_high: float = nan,
+                 bar_low: float = nan,
+                 bar_close: float = nan,
+                 bar_average: float = nan,
+                 bar_volumen: float = nan,
+                 bar_count: float = nan) -> None:
+        self.code = code
+        self.bar_time = bar_time
+        self.bar_open = bar_open
+        self.bar_high = bar_high
+        self.bar_low = bar_low
+        self.bar_close = bar_close
+        self.bar_average = bar_average
+        self.bar_volumen = bar_volumen
+        self.bar_count = bar_count
