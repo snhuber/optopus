@@ -8,7 +8,8 @@ Created on Sat Aug  4 16:30:25 2018
 from optopus.account import Account, AccountItem
 from optopus.data_manager import DataManager, DataSource
 from optopus.data_objects import Asset, BarDataType
-from optopus.strategy import DummyStrategy
+from optopus.portfolio_manager import PortfolioManager
+
 
 class Optopus():
     """Class implementing automated trading system"""
@@ -23,15 +24,18 @@ class Optopus():
         self._data_manager = DataManager()
         self._data_manager.add_data_adapter(self._broker._data_adapter,
                                             DataSource.IB)
+        self._portfolio_manager = PortfolioManager(self._data_manager)
+        
+        self._broker.emit_position_event = self._data_manager._change_position
         
         #strategies
         
 
     def start(self) -> None:
-        # self._start_strategies()
-        pass
+        self._broker.connect()
+        
     def stop(self) -> None:
-        pass
+        self._broker.disconnect()
 
     def pause(self, time: float) -> None:
         self._broker.sleep(time)
@@ -49,6 +53,9 @@ class Optopus():
         print('.')
         self._data_manager.update_assets()
         self.dummy.calculate_signals()
+        
+    def positions(self) -> object:
+        return self._portfolio_manager.positions()
 
     def current(self, assets: Asset, fields: list) -> object:
         return self._data_manager.current(assets, fields)

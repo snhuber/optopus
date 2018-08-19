@@ -16,15 +16,11 @@ from optopus.data_manager import DataSource
 host = '127.0.0.1'
 #port = 4002  # gateway
 port = port = 7497  # TWS
-client = 9
+client = 10
 
 ib = IB()
-ib.connect(host, port, client)
-
-ib_adapter = IBBrokerAdapter(ib)
-
-opt = Optopus(ib_adapter)
-#opt.start()
+opt = Optopus(IBBrokerAdapter(ib, host, port, client))
+opt.start()
 
 SPX = IndexAsset('SPX', DataSource.IB)
 RUT = IndexAsset('RUT', DataSource.IB)
@@ -47,6 +43,8 @@ of = ['delta', 'gamma', 'theta', 'vega',
       'implied_volatility', 'underlying_price', 'underlying_dividens',
       'moneyness', 'intrinsic_value', 'extrinsic_value', 'time']
 
+print(pdo(opt.positions()))
+
 #SPX_OPT = OptionChainAsset(SPX, underlying_distance=1.5)
 #print(pdo(opt.current([SPX_OPT], of)))
 
@@ -58,4 +56,4 @@ of = ['delta', 'gamma', 'theta', 'vega',
 #    print(t)
 #    opt.beat()
 
-ib.disconnect()
+opt.stop()

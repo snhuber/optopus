@@ -1,7 +1,9 @@
 # -*- coding: utf-8 -*-
 from optopus.data_objects import (DataSource, Asset, AssetType, BarDataType, 
-                                  IndexDataAsset, OptionChainDataAsset)
+                                  IndexDataAsset, OptionChainDataAsset,
+                                  PositionData)
 from optopus.settings import HISTORICAL_DAYS
+from optopus.utils import nan, is_nan, parse_ib_date, format_ib_date
 import collections
 
 
@@ -14,24 +16,50 @@ class DataManager():
         self._catalog = {}
         self._data_adapters = {}
         self._data_assets = {}
+        self._data_positions = {}
 
     def add_data_adapter(self,
                          data_adapter: DataAdapter,
                          data_source: DataSource) -> None:
         self._data_adapters[data_source] = data_adapter
 
-    def _register_data_asset(self, asset: Asset) -> bool:
-        
-        if asset.asset_type == AssetType.Index:
-            self._data_adapters[asset.data_source].register_index(asset)
-            self._data_assets[asset.asset_id] = IndexDataAsset(asset.code, asset.data_source)
-        elif asset.asset_type == AssetType.Option:
-            self._data_adapters[asset.data_source].register_option(asset)
-            self._data_assets[asset.asset_id] = OptionDataAsset(asset.underlying, asset.n_expiration_dates, asset.underlying_distance)
+    def _change_position(self, p: PositionData) -> None:
 
-    #def update_assets(self) -> None:
-    #    for da in self._data_adapters:
-    #        self._data_adapters[da].update_assets()
+        ownership = p.ownership.value if p.ownership else 'NA'
+        expiration = format_ib_date(p.expiration) if p.expiration else 'NA'
+        strike = str(p.strike) if not is_nan(p.strike) else 'NA'
+        right = p.right.value if p.right else 'NA'
+
+        key = p.code + '_' + p.asset_type.value + '_' \
+            + expiration + '_' + strike + '_' + right + '_' + ownership
+
+        self._data_positions[key] = p
+
+    def positions(self) -> object:
+        position_list = list()
+        for k, position in self._data_positions.items():
+            d = collections.OrderedDict()
+            d['code'] = position.code
+            d['asset_type'] = position.asset_type.value
+            d['expiration'] = position.expiration
+            d['strike'] = position.strike
+            d['right'] = position.right.value
+            d['ownership'] = position.ownership.value
+            d['quantity'] = position.quantity
+            d['average_cost'] = position.average_cost
+            position_list.append(d)
+        return position_list
+
+    def _register_data_asset(self, a: Asset) -> bool:
+        
+        if a.asset_type == AssetType.Index:
+            self._data_adapters[a.data_source].register_index(a)
+            self._data_assets[a.asset_id] = IndexDataAsset(a.code, a.data_source)
+        elif a.asset_type == AssetType.Option:
+            self._data_adapters[a.data_source].register_option(a)
+            self._data_assets[a.asset_id] = OptionChainDataAsset(a.underlying,
+                                                            a.n_expiration_dates, 
+                                                            a.underlying_distance)
 
     def current(self, assets: list, fields: list) -> object:
         data_assets = list()

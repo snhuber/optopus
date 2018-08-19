@@ -1,16 +1,7 @@
 # -*- coding: utf-8 -*-
 from enum import Enum
 import datetime
-
-
-nan = float('nan')
-
-
-def is_nan(x: float) -> bool:
-    """
-    Not a number test.
-    """
-    return x != x
+from optopus.utils import nan, is_nan
 
 
 class DataSource(Enum):
@@ -287,3 +278,29 @@ class BarData():
         self.bar_average = bar_average
         self.bar_volumen = bar_volumen
         self.bar_count = bar_count
+
+
+class OwnershipType(Enum):
+    Buyer = 'BUY'
+    Seller = 'SELL'
+
+
+class PositionData():
+    def __init__(self,
+                 code: str,
+                 asset_type: AssetType,
+                 expiration: datetime.date,
+                 strike: int,
+                 right: OptionRight,
+                 ownership: OwnershipType,
+                 quantity: int,
+                 average_cost: float) -> None:
+                 
+                 self.code = code
+                 self.asset_type = asset_type
+                 self.ownership = ownership
+                 self.expiration = expiration
+                 self.strike = strike
+                 self.right = right
+                 self.quantity = quantity
+                 self.average_cost = average_cost

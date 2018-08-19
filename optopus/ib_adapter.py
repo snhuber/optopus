@@ -11,7 +11,7 @@ from enum import Enum
 
 from ib_insync.ib import IB
 from ib_insync.contract import Index,  Option
-from ib_insync.objects import AccountValue, OptionComputation
+from ib_insync.objects import (AccountValue, OptionComputation, Position)
 from ib_insync.contract import Contract
 
 from optopus.account import AccountItem
@@ -19,9 +19,11 @@ from optopus.money import Money
 from optopus.data_objects import (AssetType, Asset, IndexAsset, IndexData,
                                   OptionChainAsset, OptionData, OptionIndicators,
                                   OptionRight, DataSource,
-                                  OptionMoneyness, BarDataType, BarData, nan)
+                                  OptionMoneyness, BarDataType, BarData, 
+                                  PositionData, OwnershipType)
 from optopus.data_manager import DataAdapter
 from optopus.settings import CURRENCY, HISTORICAL_DAYS
+from optopus.utils import nan, parse_ib_date
 
 
 class IBObject(Enum):
@@ -69,31 +71,43 @@ class IBOptionChainAsset(OptionChainAsset):
 class IBBrokerAdapter:
     """Class implementing the Interactive Brokers interface"""
 
-    def __init__(self, ib: IB) -> None:
+    def __init__(self, ib: IB, host: str, port: int, client: int) -> None:
         self._broker = ib
+        self._host = host
+        self._port = port
+        self._client = client
         self._translator = IBTranslator()
         self._data_adapter = IBDataAdapter(self._broker)
 
         # Callable objects. Optopus direcction
         self.emit_account_item_event = None
+        self.emit_position_event = None
         self.execute_every_period = None
 
         # Cannect to ib_insync events
         self._broker.accountValueEvent += self._onAccountValueEvent
+        self._broker.positionEvent += self._onPositionEvent
+
+    def connect(self) -> None:
+        self._broker.connect(self._host, self._port, self._client)
+        
+    def disconnect(self) ->None:
+        self._broker.disconnect()
 
     def sleep(self, time: float) -> None:
         self._broker.sleep(time)
 
     def _onAccountValueEvent(self, item: AccountValue) -> None:
-        account_item = self._translator.translate_from_IB(IBObject.account,
-                                                          item.account,
-                                                          item.tag,
-                                                          item.value,
-                                                          item.currency)
+        account_item = self._translator.translate_account_value(item)
         if account_item.tag:  # item translated
             self.emit_account_item_event(account_item)
 
-
+    def _onPositionEvent(self, item: Position) -> PositionData:
+        position = self._translator.translate_position(item)
+        if position:
+            self.emit_position_event(position)
+        
+        
 class IBTranslator:
     """Translate the IB tags and values to Ocptopus"""
     def __init__(self) -> None:
@@ -102,26 +116,33 @@ class IBTranslator:
                                      'BuyingPower': 'buying_power',
                                      'CashBalance': 'cash',
                                      'DayTradesRemaining': 'max_day_trades'}
+        self._sectype_translation = {'STK': AssetType.Stock,
+                                     'OPT': AssetType.Option,
+                                     'FUT': AssetType.Future,
+                                     'CASH': AssetType.Future,
+                                     'IND': AssetType.Index,
+                                     'CFD': AssetType.CFD,
+                                     'BOND': AssetType.Bond,
+                                     'CMDTY': AssetType.Commodity,
+                                     'FOP': AssetType.FuturesOption,
+                                     'FUND': AssetType.MutualFund,
+                                     'IOPT': AssetType.Warrant}
+        self._right_translation = {'C': OptionRight.Call,
+                                  'P': OptionRight.Put}
 
-    def translate_from_IB(self,
-                          ib_object: IBObject,
-                          ib_account: str,
-                          ib_tag: str,
-                          ib_value: object,
-                          ib_currency: str) -> AccountItem:
-        if ib_object == IBObject.account:
-                opt_money = None
-                opt_value = None
+    def translate_account_value(self, item: AccountValue) -> AccountItem:
+        opt_money = None
+        opt_value = None
 
-                opt_tag = self._translate_account_tag(ib_tag)
+        opt_tag = self._translate_account_tag(item.tag)
 
-                if ib_currency and is_number(ib_value):
-                    opt_money = self._translate_value_currency(ib_value,
-                                                               ib_currency)
-                else:  # for no money value.
-                    opt_value = ib_value
+        if item.currency and is_number(item.value):
+            opt_money = self._translate_value_currency(item.value,
+                                                       item.currency)
+        else:  # for no money value.
+            opt_value = item.value
 
-                return AccountItem(ib_account, opt_tag, opt_value, opt_money)
+        return AccountItem(item.account, opt_tag, opt_value, opt_money)
 
     def _translate_account_tag(self, ib_tag: str) -> str:
             tag = None
@@ -139,6 +160,39 @@ class IBTranslator:
 
         return m
 
+    def translate_position(self, item: Position) -> PositionData:
+        code = item.contract.symbol
+        asset_type = self._sectype_translation[item.contract.secType]
+        
+        if item.position > 0:
+            ownership = OwnershipType.Buyer
+        elif item.position < 0:
+            ownership = OwnershipType.Seller
+        else:
+            ownership = None
+        
+        expiration = item.contract.lastTradeDateOrContractMonth
+        if expiration:
+            expiration = parse_ib_date(expiration)
+        else:
+            expiration = None
+            
+        right = item.contract.right
+        if right:
+            right = self._right_translation[right]
+        else:
+            right = None
+
+        position = PositionData(code=code,
+                                asset_type=asset_type,
+                                expiration=expiration,
+                                strike=item.contract.strike,
+                                right=right,
+                                ownership=ownership,
+                                quantity=abs(item.position),
+                                average_cost=item.avgCost)
+        return position
+   
 
 class IBDataAdapter(DataAdapter):
     def __init__(self, broker: IB) -> None:
@@ -380,19 +434,3 @@ def chunks(l: list, n: int) -> list:
     for i in range(0, len(l), n):
         # Create an index range for l of n items:
         yield l[i:i+n]
-
-
-def parse_ib_date(s: str) -> datetime.date:
-    if len(s) == 8:
-        # YYYYmmdd
-        y = int(s[0:4])
-        m = int(s[4:6])
-        d = int(s[6:8])
-        dt = datetime.date(y, m, d)
-    return dt
-
-def flatten_value(self, value) -> object:
-    if isinstance(value, tuple):
-        return value[0]
-    else:
-        return value
