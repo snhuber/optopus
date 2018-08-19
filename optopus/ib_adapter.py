@@ -246,7 +246,7 @@ class IBDataAdapter(DataAdapter):
                                time=d.time)
         return data_index
 
-    def fecth_current_data_option(self, asset: Asset) -> object:
+    def fetch_current_data_option(self, asset: Asset, underlying_price: float) -> object:
         # Ask for options chains
         iba = self.assets[asset.asset_id]
         chains = self._broker.reqSecDefOptParams(iba.contract.symbol,
@@ -258,14 +258,14 @@ class IBDataAdapter(DataAdapter):
 
         if chain:
             # Ask for last underlying price
-            u_price = self.assets[iba.underlying.asset_id].market_price
+            #u_price = self.assets[iba.underlying.asset_id].market_price
 
             # next n expiration dates
             expirations = sorted(exp for exp in chain.expirations)[:iba.n_expiration_dates]
             # underlying price - %distance
-            min_strike_price = u_price * ((100 - iba.underlying_distance)/100)  
+            min_strike_price = underlying_price * ((100 - iba.underlying_distance)/100)  
             # underlying price + %distance
-            max_strike_price = u_price * ((100 + iba.underlying_distance)/100)  
+            max_strike_price = underlying_price * ((100 + iba.underlying_distance)/100)  
             strikes = sorted(strike for strike in chain.strikes
                        if min_strike_price < strike < max_strike_price)
             rights=['P','C']
@@ -299,6 +299,9 @@ class IBDataAdapter(DataAdapter):
                 implied_volatility = underlying_price = \
                 underlying_dividends = nan
 
+                moneyness = OptionMoneyness.NA
+                intrinsic_value = extrinsic_value = nan
+
                 if t.modelGreeks:                    
 
                     delta = t.modelGreeks.delta
@@ -308,9 +311,8 @@ class IBDataAdapter(DataAdapter):
                     option_price = t.modelGreeks.optPrice
                     implied_volatility = t.modelGreeks.impliedVol
                     underlying_price = t.modelGreeks.undPrice
-                    underlying_dividends = t.modelGreeks.pvDividend
-                        
-                    moneyness = intrinsic_value = extrinsic_value = nan
+                    underlying_dividends = t.modelGreeks.pvDividend                  
+                    
                     if underlying_price:
                         moneyness, intrinsic_value, extrinsic_value = \
                         self._calculate_moneyness(t.contract.strike,

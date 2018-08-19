@@ -8,7 +8,7 @@ Created on Sun Aug  5 07:34:45 2018
 from ib_insync.ib import IB
 from optopus.ib_adapter import IBBrokerAdapter
 from optopus.optopus import Optopus
-from optopus.utils import pdo
+from optopus.utils import pdo, plot_option_positions
 from optopus.data_objects import IndexAsset, OptionChainAsset
 from optopus.data_manager import DataSource
 
@@ -43,10 +43,10 @@ of = ['delta', 'gamma', 'theta', 'vega',
       'implied_volatility', 'underlying_price', 'underlying_dividens',
       'moneyness', 'intrinsic_value', 'extrinsic_value', 'time']
 
-print(pdo(opt.positions()))
+SPX_OPT = OptionChainAsset(SPX)
+print(pdo(opt.current([SPX_OPT], of)))
 
-#SPX_OPT = OptionChainAsset(SPX, underlying_distance=1.5)
-#print(pdo(opt.current([SPX_OPT], of)))
+
 
 #opt.update_assets()
 

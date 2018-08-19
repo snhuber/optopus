@@ -78,7 +78,8 @@ class DataManager():
             if asset.asset_type == AssetType.Index:
                 self._data_assets[asset.asset_id].current_data = self._data_adapters[asset.data_source].fetch_current_data_index(asset)
             if asset.asset_type == AssetType.Option:
-                self._data_assets[asset.asset_id].current_data = self._data_adapters[asset.data_source].fetch_current_data_option(asset)
+                underlying_price = self._data_assets[asset.underlying.asset_id].market_price
+                self._data_assets[asset.asset_id].current_data = self._data_adapters[asset.data_source].fetch_current_data_option(asset, underlying_price)
             
             for e in self._data_assets[asset.asset_id].current_data:
                 data_assets.append(e)

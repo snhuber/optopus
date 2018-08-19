@@ -32,6 +32,7 @@ class OptionMoneyness(Enum):
     AtTheMoney = 'ATM'
     InTheMoney = 'ITM'
     OutTheMoney = 'OTM'
+    NA = 'NA'
 
 
 class Asset():
