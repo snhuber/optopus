@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 from optopus.data_objects import (DataSource, Asset, AssetType, BarDataType, 
-                                  IndexDataAsset, OptionChainDataAsset,
+                                  IndexDataAsset, StockDataAsset, 
+                                  OptionChainDataAsset,
                                   PositionData)
 from optopus.settings import HISTORICAL_DAYS
 from optopus.utils import nan, is_nan, parse_ib_date, format_ib_date
@@ -34,6 +35,9 @@ class DataManager():
             + expiration + '_' + strike + '_' + right + '_' + ownership
 
         self._data_positions[key] = p
+        
+    def _execution(self) -> None:
+        print('EXECUTION from data manager')
 
     def positions(self) -> object:
         position_list = list()
@@ -55,6 +59,9 @@ class DataManager():
         if a.asset_type == AssetType.Index:
             self._data_adapters[a.data_source].register_index(a)
             self._data_assets[a.asset_id] = IndexDataAsset(a.code, a.data_source)
+        if a.asset_type == AssetType.Stock:
+            self._data_adapters[a.data_source].register_stock(a)
+            self._data_assets[a.asset_id] = StockDataAsset(a.code, a.data_source)            
         elif a.asset_type == AssetType.Option:
             self._data_adapters[a.data_source].register_option(a)
             self._data_assets[a.asset_id] = OptionChainDataAsset(a.underlying,
@@ -77,6 +84,8 @@ class DataManager():
 
             if asset.asset_type == AssetType.Index:
                 self._data_assets[asset.asset_id].current_data = self._data_adapters[asset.data_source].fetch_current_data_index(asset)
+            if asset.asset_type == AssetType.Stock:
+                self._data_assets[asset.asset_id].current_data = self._data_adapters[asset.data_source].fetch_current_data_stock(asset)
             if asset.asset_type == AssetType.Option:
                 underlying_price = self._data_assets[asset.underlying.asset_id].market_price
                 self._data_assets[asset.asset_id].current_data = self._data_adapters[asset.data_source].fetch_current_data_option(asset, underlying_price)
@@ -121,13 +130,11 @@ class DataManager():
             if bar_type == BarDataType.Trades:
                 self._data_assets[asset.asset_id].historical_data = self._data_adapters[asset.data_source].fetch_historical_data_asset(asset)
                 data = self._data_assets[asset.asset_id].historical_data
-                #data = self._data_adapters[asset.data_source].historical(asset)
-                #self._data_assets[asset.asset_id].historical_data = data
+                
             elif bar_type == BarDataType.IV:
                 self._data_assets[asset.asset_id].historical_IV_data = self._data_adapters[asset.data_source].fetch_historical_IV_data_asset(asset)
                 data = self._data_assets[asset.asset_id].historical_IV_data
-                #data = self._data_adapters[asset.data_source].historical_IV(asset)
-                #self._data_assets[asset.asset_id].historial_IV_data = data        
+                
             for e in data:
                 data_assets.append(e)
 

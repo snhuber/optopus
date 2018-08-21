@@ -9,7 +9,7 @@ from ib_insync.ib import IB
 from optopus.ib_adapter import IBBrokerAdapter
 from optopus.optopus import Optopus
 from optopus.utils import pdo, plot_option_positions
-from optopus.data_objects import IndexAsset, OptionChainAsset
+from optopus.data_objects import IndexAsset, StockAsset, OptionChainAsset
 from optopus.data_manager import DataSource
 
 
@@ -22,10 +22,16 @@ ib = IB()
 opt = Optopus(IBBrokerAdapter(ib, host, port, client))
 opt.start()
 
-SPX = IndexAsset('SPX', DataSource.IB)
-RUT = IndexAsset('RUT', DataSource.IB)
 f = ['high', 'low', 'close', 'bid', 'bid_size', 'ask', 'ask_size',
              'last', 'last_size', 'time', 'midpoint', 'market_price']
+
+print('---- SPY ----')
+SPY = StockAsset('SPY', DataSource.IB)
+print(pdo(opt.current(SPY, f)))
+
+SPX = IndexAsset('SPX', DataSource.IB)
+RUT = IndexAsset('RUT', DataSource.IB)
+
 print(pdo(opt.current([SPX, RUT], f)))
 
 print(pdo(opt.historical([SPX], ['bar_low'])))

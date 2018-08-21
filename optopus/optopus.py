@@ -17,8 +17,7 @@ class Optopus():
     def __init__(self, broker) -> None:
         self._broker = broker
         self._account = Account()
-        # Events
-        self._broker.emit_account_item_event = self._change_account_item
+       
         
         
         self._data_manager = DataManager()
@@ -26,9 +25,12 @@ class Optopus():
                                             DataSource.IB)
         self._portfolio_manager = PortfolioManager(self._data_manager)
         
+         # Events
+        self._broker.emit_account_item_event = self._change_account_item
         self._broker.emit_position_event = self._data_manager._change_position
+        self._broker.emit_execution_details = self._data_manager._execution
         
-        #strategies
+
         
 
     def start(self) -> None:

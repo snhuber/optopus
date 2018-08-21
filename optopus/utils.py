@@ -16,33 +16,44 @@ def pdo(records):
 
 def plot_option_positions(positions, underlying_price: float):
     import matplotlib.pyplot as plt
-    fig = plt.figure(figsize=(12, 2.5))
+    fig = plt.figure(figsize=(12, 2))
     ax = fig.add_subplot(111)
 
-    ax.set_frame_on(False)
-    ax.get_yaxis().set_visible(False)
+    #ax.set_frame_on(False)
+    #ax.get_yaxis().set_visible(False)
 
-    x_min = 100000.0
-    x_max = 0.0
+    x_min = underlying_price
+    x_max = underlying_price
     for pos in positions:
-        x = pos['strike'] - 0.20
+        x = pos['strike']
+        y = -2 if pos['ownership'] == 'SELL' else 0.7
         color = SELL_COLOR if pos['ownership'] == 'SELL' else BUY_COLOR
-        ax.annotate(pos['right'],
-                    xy=(x, 0.6),
+        
+        ax.annotate('   ' + pos['right'] + '\n' + str(pos['strike']),
+                    xy=(x, y),
                     xycoords='data',
-                    size=30,
-                    color='white',
-                    bbox=dict(boxstyle="round4", fc=color, ec=color))
+                    size=10,
+                    color=color,
+                    bbox=dict(boxstyle="round4", fc='white', ec=color))
+
         x_min = min(x_min, pos['strike'])
         x_max = max(x_max, pos['strike'])
 
-    ax.set_xlim(x_min - 5, x_max + 5)
-    ax.set_ylim(0, 5)
+    ax.set_xlim(x_min - 2, x_max + 2)
+    ax.set_ylim(-3, 3)
 
-    ax.annotate("U",
-                xy=(underlying_price-0.12, 0.4),
+    ax.spines['left'].set_visible(False)
+    ax.spines['right'].set_visible(False)
+    ax.spines['top'].set_visible(False)
+    ax.spines['bottom'].set_position('center')
+    ax.spines['bottom'].set_color('gray')
+    ax.yaxis.set_visible(False)
+    ax.xaxis.set_visible(False)
+
+    ax.annotate(str(underlying_price),
+                xy=(underlying_price, 0),
                 xycoords="data",
-                size=15,
+                size=10,
                 color='white',
                 bbox=dict(boxstyle="circle", fc=UNDERLYING_COLOR, ec=UNDERLYING_COLOR))
 

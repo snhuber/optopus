@@ -8,21 +8,25 @@ Created on Sun Aug  5 07:21:38 2018
 # from ib_insync import *
 import datetime
 from enum import Enum
+import collections
 
 from ib_insync.ib import IB
-from ib_insync.contract import Index,  Option
-from ib_insync.objects import (AccountValue, OptionComputation, Position)
+from ib_insync.contract import Index, Option, Stock
+from ib_insync.objects import (AccountValue, OptionComputation, Position, Fill)
+from ib_insync.order import Trade
 from ib_insync.contract import Contract
 
 from optopus.account import AccountItem
 from optopus.money import Money
-from optopus.data_objects import (AssetType, Asset, IndexAsset, IndexData,
-                                  OptionChainAsset, OptionData, OptionIndicators,
+from optopus.data_objects import (AssetType, Asset,
+                                  IndexAsset, IndexData,
+                                  StockAsset, StockData,
+                                  OptionChainAsset, OptionData,
                                   OptionRight, DataSource,
                                   OptionMoneyness, BarDataType, BarData, 
                                   PositionData, OwnershipType)
 from optopus.data_manager import DataAdapter
-from optopus.settings import CURRENCY, HISTORICAL_DAYS
+from optopus.settings import CURRENCY, HISTORICAL_DAYS, DATA_DIR
 from optopus.utils import nan, parse_ib_date
 
 
@@ -32,6 +36,33 @@ class IBObject(Enum):
 
 
 class IBIndexAsset(IndexAsset):
+    def __init__(self,
+                 code: str,
+                 data_source: DataSource,
+                 contract: Contract) -> None:
+        super().__init__(code, data_source)
+        self.contract = contract
+        self._historical_data_updated = None
+        self._historical_IV_data_updated = None
+
+    def historical_data_is_updated(self) -> bool:
+        if self._historical_data_updated:
+            delta = datetime.datetime.now() - self._historical_data_updated
+            if delta.days:
+                return True
+            else:
+                return False
+
+    def historical_IV_data_is_updated(self) -> bool:
+        if self._historical_IV_data_updated:
+            delta = datetime.datetime.now() - self._historical_IV_data_updated
+            if delta.days:
+                return True
+            else:
+                return False
+
+
+class IBStockAsset(StockAsset):
     def __init__(self,
                  code: str,
                  data_source: DataSource,
@@ -82,15 +113,17 @@ class IBBrokerAdapter:
         # Callable objects. Optopus direcction
         self.emit_account_item_event = None
         self.emit_position_event = None
+        self._broker.emit_execution_details = None
         self.execute_every_period = None
 
         # Cannect to ib_insync events
         self._broker.accountValueEvent += self._onAccountValueEvent
         self._broker.positionEvent += self._onPositionEvent
+        self._broker.execDetailsEvent += self._onExecDetailsEvent
 
     def connect(self) -> None:
         self._broker.connect(self._host, self._port, self._client)
-        
+
     def disconnect(self) ->None:
         self._broker.disconnect()
 
@@ -106,7 +139,22 @@ class IBBrokerAdapter:
         position = self._translator.translate_position(item)
         if position:
             self.emit_position_event(position)
-        
+            
+    def _onExecDetailsEvent(self, trade: Trade, fill: Fill):
+        h = "\n[{}]\n".format(datetime.datetime.now())
+        t = h + str(trade)
+        with open(DATA_DIR + "\execution.log", "a") as f:
+            f.write(t)
+
+        self.emit_execution_details()
+
+# https://interactivebrokers.github.io/tws-api/order_submission.html
+f = ['conId', 'symbol', 'exchange', 'primaryExchange', 'currency', 
+     'localSymbol', 'tradingClass', 'orderId', 'action', 'totalQuantity',
+     'lmtPrice', 'status', 'remaining', 'permId', 'clientId',
+     'PST', 'PSM', 'PCT', 'PCM', 'PRT', 'PRM', 'ST', 'SM', 'CT', 'CM', 'FT', 'FM']
+edetail = collections.namedtuple('ExecutionDetail', f)
+                                 
         
 class IBTranslator:
     """Translate the IB tags and values to Ocptopus"""
@@ -203,11 +251,28 @@ class IBDataAdapter(DataAdapter):
     def register_index(self, asset: IndexAsset) -> bool:
         started = False
         if asset.asset_id not in self.assets:
-                contract = Index(asset.code)
+                contract = Index(asset.code, currency=CURRENCY.value)
                 q_contract = self._broker.qualifyContracts(contract)
                 if len(q_contract) == 1:
                     # create a new series object and add to series dict
                     iba = IBIndexAsset(code=asset.code,
+                                       data_source=asset.data_source,
+                                       contract=q_contract[0])
+
+                    self.assets[asset.asset_id] = iba
+                    started = True
+                else:
+                    raise ValueError('Error: multiple contracts')
+        return started
+
+    def register_stock(self, asset: StockAsset) -> bool:
+        started = False
+        if asset.asset_id not in self.assets:
+                contract = Stock(asset.code, exchange='SMART', currency=CURRENCY.value)
+                q_contract = self._broker.qualifyContracts(contract)
+                if len(q_contract) == 1:
+                    # create a new series object and add to series dict
+                    iba = IBStockAsset(code=asset.code,
                                        data_source=asset.data_source,
                                        contract=q_contract[0])
 
@@ -245,6 +310,22 @@ class IBDataAdapter(DataAdapter):
                                last_size=d.lastSize,
                                time=d.time)
         return data_index
+    
+    def fetch_current_data_stock(self, asset: Asset) -> object:
+        iba = self.assets[asset.asset_id]
+        [d] = self._broker.reqTickers(iba.contract)
+        data_stock = StockData(code=iba.contract.symbol,
+                               high=d.high,
+                               low=d.low,
+                               close=d.close,
+                               bid=d.bid,
+                               bid_size=d.bidSize,
+                               ask=d.ask,
+                               ask_size=d.askSize,
+                               last=d.last,
+                               last_size=d.lastSize,
+                               time=d.time)
+        return data_stock
 
     def fetch_current_data_option(self, asset: Asset, underlying_price: float) -> object:
         # Ask for options chains
@@ -397,7 +478,7 @@ class IBDataAdapter(DataAdapter):
 
     def fetch_historical_data_asset(self, asset: Asset) -> None:
         iba = self.assets[asset.asset_id]
-        if iba.asset_type == AssetType.Index:
+        if iba.asset_type == AssetType.Index or iba.asset_type == AssetType.Stock:
             if not iba.historical_data_is_updated():
                 duration = str(HISTORICAL_DAYS) + ' D'
                 bars = self._broker.reqHistoricalData(iba.contract,
@@ -411,7 +492,7 @@ class IBDataAdapter(DataAdapter):
 
     def fetch_historical_IV_data_asset(self, asset: Asset) -> None:
         iba = self.assets[asset.asset_id]
-        if iba.asset_type == AssetType.Index:
+        if iba.asset_type == AssetType.Index or iba.asset_type == AssetType.Stock:
             if not iba.historical_IV_data_is_updated():
                 duration = str(HISTORICAL_DAYS) + ' D'
                 bars = self._broker.reqHistoricalData(iba.contract,
@@ -422,6 +503,7 @@ class IBDataAdapter(DataAdapter):
                                                       useRTH=True,
                                                       formatDate=1)
                 return self._process_bars(iba.code, bars)
+
 
 def is_number(s: str) -> bool:
     try:
