@@ -9,7 +9,7 @@ from optopus.account import Account, AccountItem
 from optopus.data_manager import DataManager, DataSource
 from optopus.data_objects import Asset, BarDataType
 from optopus.portfolio_manager import PortfolioManager
-
+from optopus.order_manager import OrderManager
 
 class Optopus():
     """Class implementing automated trading system"""
@@ -17,33 +17,43 @@ class Optopus():
     def __init__(self, broker) -> None:
         self._broker = broker
         self._account = Account()
-       
         
-        
+    def start(self) -> None:
+        print('[Initializating managers...]')
         self._data_manager = DataManager()
         self._data_manager.add_data_adapter(self._broker._data_adapter,
                                             DataSource.IB)
         self._portfolio_manager = PortfolioManager(self._data_manager)
-        
-         # Events
+        self._order_manager = OrderManager(self._broker)
+
+        print('[Starting event listeners...]')
         self._broker.emit_account_item_event = self._change_account_item
-        self._broker.emit_position_event = self._data_manager._change_position
-        self._broker.emit_execution_details = self._data_manager._execution
-        
+        self._broker.emit_position_event = self._data_manager._position
+        self._broker.emit_new_order = self._new_order
+        self._broker.emit_order_status = self._order_status
+        self._broker.emit_commission_report = self._data_manager._commission_report
 
-        
-
-    def start(self) -> None:
+        print('[Connecting to IB broker...]')
         self._broker.connect()
-        
+        self._broker.sleep(2)
+
+        print('[Updating values...]')
+        self._data_manager.match_trades_positions()
+
     def stop(self) -> None:
         self._broker.disconnect()
 
     def pause(self, time: float) -> None:
         self._broker.sleep(time)
 
-    def _start_strategies(self) -> None:
-        self.dummy = DummyStrategy(self._data_manager)
+    def process(self, signals) -> None:
+        self._order_manager.process(signals)
+
+    def _new_order(self) -> None:
+        pass
+
+    def _order_status(self) -> None:
+        pass
 
     def _change_account_item(self, item: AccountItem) -> None:
         try:

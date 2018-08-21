@@ -2,10 +2,12 @@
 from optopus.data_objects import (DataSource, Asset, AssetType, BarDataType, 
                                   IndexDataAsset, StockDataAsset, 
                                   OptionChainDataAsset,
-                                  PositionData)
-from optopus.settings import HISTORICAL_DAYS
+                                  PositionData, TradeData)
+from optopus.settings import HISTORICAL_DAYS, DATA_DIR
 from optopus.utils import nan, is_nan, parse_ib_date, format_ib_date
 import collections
+import pickle
+from pathlib import Path
 
 
 class DataAdapter():
@@ -24,8 +26,7 @@ class DataManager():
                          data_source: DataSource) -> None:
         self._data_adapters[data_source] = data_adapter
 
-    def _change_position(self, p: PositionData) -> None:
-
+    def _position(self, p: PositionData) -> None:
         ownership = p.ownership.value if p.ownership else 'NA'
         expiration = format_ib_date(p.expiration) if p.expiration else 'NA'
         strike = str(p.strike) if not is_nan(p.strike) else 'NA'
@@ -35,9 +36,39 @@ class DataManager():
             + expiration + '_' + strike + '_' + right + '_' + ownership
 
         self._data_positions[key] = p
-        
-    def _execution(self) -> None:
-        print('EXECUTION from data manager')
+
+    def _commission_report(self, trade: TradeData) -> None:
+        self._add_trade(trade)
+
+    def _add_trade(self, trade: TradeData) -> None:
+        ownership = trade.ownership.value if trade.ownership else 'NA'
+        expiration = format_ib_date(trade.expiration) if trade.expiration else 'NA'
+        strike = str(trade.strike) if not is_nan(trade.strike) else 'NA'
+        right = trade.right.value if trade.right else 'NA'
+
+        key = trade.code + '_' + trade.asset_type.value + '_' \
+            + expiration + '_' + strike + '_' + right + '_' + ownership
+
+        pos = self._data_positions[key]
+        pos.trades.append(trade)
+        self._write_positions()
+
+    def _write_positions(self) -> None:
+        file_name = Path.cwd() / DATA_DIR / "positions.pckl"
+        with open(file_name, 'wb') as file_handler:
+                pickle.dump(self._data_positions, file_handler)
+
+    def match_trades_positions(self) -> None:
+        file_name = Path.cwd() / DATA_DIR / "positions.pckl"
+        with open(file_name, 'rb') as file_handler:
+                positions_bk = pickle.load(file_handler)
+                
+        for k, p in self._data_positions.items():
+            if k in positions_bk.keys():
+                if positions_bk[k].trades:
+                    p.trades = positions_bk[k].trades
+                    
+        self._write_positions()
 
     def positions(self) -> object:
         position_list = list()

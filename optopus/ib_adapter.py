@@ -8,12 +8,13 @@ Created on Sun Aug  5 07:21:38 2018
 # from ib_insync import *
 import datetime
 from enum import Enum
-import collections
+from pathlib import Path
 
 from ib_insync.ib import IB
 from ib_insync.contract import Index, Option, Stock
-from ib_insync.objects import (AccountValue, OptionComputation, Position, Fill)
-from ib_insync.order import Trade
+from ib_insync.objects import (AccountValue, OptionComputation, Position, Fill,
+                               CommissionReport)
+from ib_insync.order import Trade, LimitOrder
 from ib_insync.contract import Contract
 
 from optopus.account import AccountItem
@@ -23,11 +24,13 @@ from optopus.data_objects import (AssetType, Asset,
                                   StockAsset, StockData,
                                   OptionChainAsset, OptionData,
                                   OptionRight, DataSource,
-                                  OptionMoneyness, BarDataType, BarData, 
-                                  PositionData, OwnershipType)
+                                  OptionMoneyness, BarDataType, BarData,
+                                  PositionData, OwnershipType,
+                                  OrderData, OrderAction, OrderType, 
+                                  OrderStatus, TradeData)
 from optopus.data_manager import DataAdapter
 from optopus.settings import CURRENCY, HISTORICAL_DAYS, DATA_DIR
-from optopus.utils import nan, parse_ib_date
+from optopus.utils import nan, parse_ib_date, format_ib_date
 
 
 class IBObject(Enum):
@@ -113,13 +116,20 @@ class IBBrokerAdapter:
         # Callable objects. Optopus direcction
         self.emit_account_item_event = None
         self.emit_position_event = None
-        self._broker.emit_execution_details = None
+        self.emit_execution_details = None
+        self.emit_commission_report = None
+        self.emit_new_order = None
+        self.emit_order_status = None
+        
         self.execute_every_period = None
 
         # Cannect to ib_insync events
         self._broker.accountValueEvent += self._onAccountValueEvent
         self._broker.positionEvent += self._onPositionEvent
-        self._broker.execDetailsEvent += self._onExecDetailsEvent
+        #self._broker.execDetailsEvent += self._onExecDetailsEvent
+        self._broker.newOrderEvent += self._onNewOrderEvent
+        self._broker.orderStatusEvent += self._onOrderStatusEvent
+        self._broker.commissionReportEvent += self._onCommissionReportEvent
 
     def connect(self) -> None:
         self._broker.connect(self._host, self._port, self._client)
@@ -130,6 +140,49 @@ class IBBrokerAdapter:
     def sleep(self, time: float) -> None:
         self._broker.sleep(time)
 
+    def place_order(self, orders) -> None:
+        for o in orders:
+            if o.asset.asset_type == AssetType.Option:
+                contract = self._qualify_option(o.asset,
+                                                o.strike,
+                                                o.right,
+                                                o.expiration)
+                action = 'BUY' if o.action == OrderAction.Buy else 'SELL'
+                if o.order_type == OrderType.Limit:
+                    order = LimitOrder(action=action,
+                                       totalQuantity=o.quantity,
+                                       lmtPrice=o.price,
+                                       orderRef=o.reference,
+                                       tif='DAY')
+                    trade = self._broker.placeOrder(contract, order)
+                    
+
+    def _qualify_option(self, 
+                   asset: Asset,
+                   strike: int,
+                   right: OptionRight,
+                   expiration: datetime.date):
+    
+        symbol = asset.code
+        currency = asset.currency.value
+        exchange = 'SMART'
+        option_right = 'C' if right == OptionRight.Call else 'P'
+        option_expiration = format_ib_date(expiration) 
+        
+        c = Option(symbol=symbol,
+                   strike=strike,
+                   currency=currency, 
+                   exchange=exchange,
+                   right=option_right,
+                   lastTradeDateOrContractMonth=option_expiration)
+        qc = self._broker.qualifyContracts(c)
+
+        if len(qc) == 1:
+            return qc[0]
+        else:
+            return None  
+
+
     def _onAccountValueEvent(self, item: AccountValue) -> None:
         account_item = self._translator.translate_account_value(item)
         if account_item.tag:  # item translated
@@ -139,23 +192,29 @@ class IBBrokerAdapter:
         position = self._translator.translate_position(item)
         if position:
             self.emit_position_event(position)
-            
-    def _onExecDetailsEvent(self, trade: Trade, fill: Fill):
+
+    #def _onExecDetailsEvent(self, trade: Trade, fill: Fill):
+    #    pass
+
+    def _onCommissionReportEvent(self, trade: Trade, fill: Fill, report: CommissionReport):
         h = "\n[{}]\n".format(datetime.datetime.now())
         t = h + str(trade)
-        with open(DATA_DIR + "\execution.log", "a") as f:
+        file_name = Path.cwd() / "data" / "execution.log"
+        with open(file_name, "a") as f:
             f.write(t)
+        trade_data = self._translator.translate_trade(trade)
 
-        self.emit_execution_details()
+        self._broker.sleep(1) # wait for new position event
 
-# https://interactivebrokers.github.io/tws-api/order_submission.html
-f = ['conId', 'symbol', 'exchange', 'primaryExchange', 'currency', 
-     'localSymbol', 'tradingClass', 'orderId', 'action', 'totalQuantity',
-     'lmtPrice', 'status', 'remaining', 'permId', 'clientId',
-     'PST', 'PSM', 'PCT', 'PCM', 'PRT', 'PRM', 'ST', 'SM', 'CT', 'CM', 'FT', 'FM']
-edetail = collections.namedtuple('ExecutionDetail', f)
-                                 
-        
+        self.emit_commission_report(trade_data)
+
+    def _onNewOrderEvent(self, trade: Trade):
+        self.emit_new_order()
+
+    def _onOrderStatusEvent(self, trade: Trade):
+        self.emit_order_status()
+
+
 class IBTranslator:
     """Translate the IB tags and values to Ocptopus"""
     def __init__(self) -> None:
@@ -175,8 +234,20 @@ class IBTranslator:
                                      'FOP': AssetType.FuturesOption,
                                      'FUND': AssetType.MutualFund,
                                      'IOPT': AssetType.Warrant}
+
         self._right_translation = {'C': OptionRight.Call,
                                   'P': OptionRight.Put}
+        
+        self._order_status_translation = {'PendingSubmit': OrderStatus.PendingSubmit,
+                                          'PendingCancel': OrderStatus.PendingCancel,
+                                          'PreSubmitted': OrderStatus.PreSubmitted,
+                                          'Submitted': OrderStatus.Submitted,
+                                          'Cancelled': OrderStatus.Cancelled,
+                                          'Filled': OrderStatus.Filled,
+                                          'Inactive': OrderStatus.Inactive}
+        
+        self._ownership_translation = {'BUY': OwnershipType.Buyer,
+                                       'SELL': OwnershipType.Seller}
 
     def translate_account_value(self, item: AccountValue) -> AccountItem:
         opt_money = None
@@ -234,19 +305,73 @@ class IBTranslator:
         position = PositionData(code=code,
                                 asset_type=asset_type,
                                 expiration=expiration,
-                                strike=item.contract.strike,
-                                right=right,
                                 ownership=ownership,
                                 quantity=abs(item.position),
+                                strike=item.contract.strike,
+                                right=right,
                                 average_cost=item.avgCost)
         return position
-   
+
+
+    def translate_trade(self, item: Trade) -> TradeData:
+        code = item.contract.symbol
+        asset_type = self._sectype_translation[item.contract.secType]
+        ownership = self._ownership_translation[item.order.action]
+        
+        expiration = item.contract.lastTradeDateOrContractMonth
+        if expiration:
+            expiration = parse_ib_date(expiration)
+        else:
+            expiration = None
+
+        right = item.contract.right
+        if right:
+            right = self._right_translation[right]
+        else:
+            right = None
+
+        if item.order.orderRef:
+            algorithm, strategy, rol = item.order.orderRef.split('-')
+        else:
+            algorithm = strategy = rol = 'NA'
+
+        if item.order.volatility:
+            volatility = item.order.volatility
+        else:
+            volatility = nan
+
+        order_status = self._order_status_translation[item.orderStatus.status]
+        price = item.orderStatus.avgFillPrice
+        quantity = item.orderStatus.filled
+        if hasattr(item, 'commissionReport'):
+            commission = item.commissionReport.commission
+        else:
+            commission = nan
+        time = datetime.datetime.now()
+
+        trade = TradeData(code=code,
+                          asset_type=asset_type,
+                          expiration=expiration,
+                          ownership=ownership,
+                          quantity=quantity,
+                          strike=item.contract.strike,
+                          right=right,
+                          algorithm=algorithm,
+                          strategy=strategy,
+                          rol=rol,
+                          implied_volatility=volatility,
+                          order_status=order_status,
+                          time=time,
+                          price=price,
+                          commission=commission)
+        return trade
 
 class IBDataAdapter(DataAdapter):
     def __init__(self, broker: IB) -> None:
         self._broker = broker
         self.assets = {}
-        self._contracts = {}
+        self._contracts = {}        
+
 
     def register_index(self, asset: IndexAsset) -> bool:
         started = False

@@ -2,6 +2,8 @@
 from enum import Enum
 import datetime
 from optopus.utils import nan, is_nan
+from optopus.currency import Currency
+from optopus.settings import CURRENCY
 
 
 class DataSource(Enum):
@@ -23,6 +25,19 @@ class AssetType(Enum):
     Warrant = 'IOPT'
 
 
+class StrategyType(Enum):
+    SellNakedPut = 'Sell naked put'
+
+
+class OrderType(Enum):
+    Market = 'MTK'
+    Limit = 'LMT'
+
+
+class OrderAction(Enum):
+    Buy = 'BUY'
+    Sell = 'SELL'
+
 class OptionRight(Enum):
     Call = 'C'
     Put = 'P'
@@ -39,22 +54,30 @@ class Asset():
     def __init__(self,
                  code: str,
                  asset_type: AssetType,
-                 data_source: DataSource) -> None:
+                 data_source: DataSource = DataSource.IB,
+                 currency: Currency = CURRENCY) -> None:
         self.code = code
         self.asset_type = asset_type
         self.data_source = data_source
+        self.currency = CURRENCY
 
     @property
     def asset_id(self) -> str:
         return self.code + '_' + self.asset_type.value
 class IndexAsset(Asset):
-    def __init__(self, code: str, data_source: DataSource) -> None:
-        super().__init__(code, AssetType.Index, data_source)
+    def __init__(self, 
+                 code: str, 
+                 data_source: DataSource = DataSource.IB,
+                 currency: Currency = CURRENCY) -> None:
+        super().__init__(code, AssetType.Index, data_source, currency)
 
 
 class IndexDataAsset(IndexAsset):
-    def __init__(self, code: str, data_source: DataSource) -> None:
-        super().__init__(code, data_source)
+    def __init__(self,
+                 code: str,
+                 data_source: DataSource = DataSource.IB,
+                 currency: Currency = CURRENCY) -> None:
+        super().__init__(code, data_source, currency)
         self._data = None
         self._historical_data = None
         self._historical_IV_data = None
@@ -142,13 +165,19 @@ class IndexData():
 
 
 class StockAsset(Asset):
-    def __init__(self, code: str, data_source: DataSource) -> None:
-        super().__init__(code, AssetType.Stock, data_source)
+    def __init__(self,
+                 code: str,
+                 data_source: DataSource = DataSource.IB,
+                 currency: Currency = CURRENCY) -> None:
+        super().__init__(code, AssetType.Stock, data_source, currency)
 
 
 class StockDataAsset(StockAsset):
-    def __init__(self, code: str, data_source: DataSource) -> None:
-        super().__init__(code, data_source)
+    def __init__(self,
+                 code: str,
+                 data_source: DataSource = DataSource.IB,
+                 currency: Currency = CURRENCY) -> None:
+        super().__init__(code, data_source, currency)
         self._data = None
         self._historical_data = None
         self._historical_IV_data = None
@@ -182,6 +211,7 @@ class StockDataAsset(StockAsset):
     @property
     def market_price(self):
         return self._data.market_price
+
 
 class StockData():
     def __init__(self,
@@ -239,7 +269,7 @@ class OptionChainAsset(Asset):
                  underlying: Asset,
                  n_expiration_dates: int = 3,
                  underlying_distance: float = 1) -> None:
-        super().__init__(underlying.code, AssetType.Option, underlying.data_source)
+        super().__init__(underlying.code, AssetType.Option, underlying.data_source, underlying.currency)
         self.underlying = underlying
         self.n_expiration_dates = n_expiration_dates
         self.underlying_distance = underlying_distance
@@ -355,18 +385,122 @@ class PositionData():
     def __init__(self,
                  code: str,
                  asset_type: AssetType,
-                 expiration: datetime.date,
-                 strike: int,
-                 right: OptionRight,
                  ownership: OwnershipType,
                  quantity: int,
-                 average_cost: float) -> None:
-                 
-                 self.code = code
-                 self.asset_type = asset_type
-                 self.ownership = ownership
-                 self.expiration = expiration
-                 self.strike = strike
-                 self.right = right
-                 self.quantity = quantity
-                 self.average_cost = average_cost
+                 expiration: datetime.date = None,
+                 strike: int = None,
+                 right: OptionRight = None,
+                 average_cost: float = None) -> None:
+
+        self.code = code
+        self.asset_type = asset_type
+        self.ownership = ownership
+        self.expiration = expiration
+        self.strike = strike
+        self.right = right
+        self.quantity = quantity
+        self.average_cost = average_cost
+        self.trades = []
+
+
+class SignalData():
+    def __init__(self,
+                 asset: Asset,
+                 action: OrderAction,
+                 quantity: int,
+                 price: float,
+                 expiration: datetime.date = None,
+                 strike: int = None,
+                 right: OptionRight = None,
+                 algorithm: str = None,
+                 strategy: StrategyType = None,
+                 rol: str = None) -> None:
+
+        self.asset = asset
+        self.action = action
+        self.quantity = quantity
+        self.price = price
+
+        self.expiration = expiration
+        self.strike = strike
+        self.right = right
+        
+        self.algorithm = algorithm
+        self.strategy = strategy
+        self.rol = rol
+        
+        self.time = datetime.datetime.now()
+
+
+class OrderStatus(Enum):
+    PendingSubmit = 'Pending submit'
+    PendingCancel = 'Pending cancel'
+    PreSubmitted = 'Presubmitted'
+    Submitted = 'Submitted'
+    Cancelled = 'Cancelled'
+    Filled = 'Filled'
+    Inactive = 'Inactive'
+
+
+class OrderData():
+    def __init__(self,
+                 asset: Asset,
+                 action: OrderAction,
+                 quantity: int,
+                 price: float,
+                 order_type: OrderType,
+                 expiration: datetime.date = None,
+                 strike: int = None,
+                 right: OptionRight = None,
+                 reference: str = None):
+
+        self.asset = asset
+        self.action = action
+        self.quantity = quantity
+        self.price = price
+        self.order_type = order_type
+
+        self.expiration = expiration
+        self.strike = strike
+        self.right = right
+        
+        self.reference = reference
+        
+        self.time = datetime.datetime.now()
+
+
+# https://interactivebrokers.github.io/tws-api/order_submission.html
+class TradeData:
+    def __init__(self,
+                 code: str,
+                 asset_type: AssetType,
+                 ownership: OwnershipType,
+                 quantity: int,
+                 expiration: datetime.date = None,
+                 strike: int = None,
+                 right: OptionRight = None,
+                 algorithm: str = None,
+                 strategy: StrategyType = None,
+                 rol: str = None,
+                 implied_volatility: float = None,
+                 order_status: OrderStatus = None,
+                 time: datetime.datetime = None,
+                 price: float = None,
+                 commission: float = None):
+
+        self.code = code
+        self.asset_type = asset_type
+        self.ownership = ownership
+        self.quantity = quantity
+        self.expiration = expiration
+        self.strike = strike
+        self.right = right
+        self.algorithm = algorithm
+        self.strategy = strategy
+        self.rol = rol
+        self.implied_volatility = implied_volatility
+        self.order_status = order_status
+        self.time = time
+        self.price = price
+        self.commission = commission
+
