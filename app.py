@@ -9,8 +9,15 @@ from ib_insync.ib import IB
 from optopus.ib_adapter import IBBrokerAdapter
 from optopus.optopus import Optopus
 from optopus.utils import pdo, plot_option_positions
-from optopus.data_objects import IndexAsset, StockAsset, OptionChainAsset
+from optopus.data_objects import UStock, UIndex, OptionChainAsset
 from optopus.data_manager import DataSource
+
+watch_list = [UStock('SPY'),
+              UStock('QQQ'),
+              UStock('EEM'),
+              UStock('IWM'),
+              UStock('FXI'),
+              UStock('VXX')]
 
 
 host = '127.0.0.1'
@@ -19,8 +26,10 @@ port = port = 7497  # TWS
 client = 10
 
 ib = IB()
-opt = Optopus(IBBrokerAdapter(ib, host, port, client))
+opt = Optopus(IBBrokerAdapter(ib, host, port, client), watch_list)
 opt.start()
 
+print('Updating underlyings')
+print(pdo(opt.underlyings(['high', 'low', 'market_price', 'IV_rank', 'IV_percentile'])))
 
 opt.stop()

@@ -64,147 +64,68 @@ class Asset():
     @property
     def asset_id(self) -> str:
         return self.code + '_' + self.asset_type.value
-class IndexAsset(Asset):
-    def __init__(self, 
-                 code: str, 
-                 data_source: DataSource = DataSource.IB,
-                 currency: Currency = CURRENCY) -> None:
-        super().__init__(code, AssetType.Index, data_source, currency)
 
 
-class IndexDataAsset(IndexAsset):
+class UnderlyingAsset(Asset):
     def __init__(self,
                  code: str,
+                 asset_type: AssetType,
                  data_source: DataSource = DataSource.IB,
                  currency: Currency = CURRENCY) -> None:
-        super().__init__(code, data_source, currency)
-        self._data = None
-        self._historical_data = None
-        self._historical_IV_data = None
-
-    @property
-    def current_data(self):
-        return [self._data]
-
-    @current_data.setter
-    def current_data(self, values):
-        self._data = values
-
-    @property
-    def historical_data(self):
-        return self._historical_data
-
-    @historical_data.setter
-    def historical_data(self, values):
-        self._historical_data = values
-        self._historical_data_updated = datetime.datetime.now()
-
-    @property
-    def historical_IV_data(self):
-        return self._historical_IV_data
-
-    @historical_IV_data.setter
-    def historical_IV_data(self, values):
-        self._historical_IV_data = values
-        self._historical_data_updated = datetime.datetime.now()
-
-    @property
-    def market_price(self):
-        return self._data.market_price
+        super().__init__(code, asset_type, data_source, currency)
 
 
-class IndexData():
-    def __init__(self,
-                 code: str,
-                 high: float = nan,
-                 low: float = nan,
-                 close: float = nan,
-                 bid: float = nan,
-                 bid_size: float = nan,
-                 ask: float = nan,
-                 ask_size: float = nan,
-                 last: float = nan,
-                 last_size: float = nan,
-                 time: datetime.datetime = None) -> None:
-        self.code = code
-        self.asset_type = AssetType.Index
-        self.high = high
-        self.low = low
-        self.close = close
-        self.bid = bid
-        self.bid_size = bid_size
-        self.ask = ask
-        self.ask_size = ask_size
-        self.last = last
-        self.last_size = last_size
-        self.time = time
-
-    @property
-    def midpoint(self) -> float:
-        return(self.bid + self.ask) / 2
-
-    @property
-    def market_price(self) -> float:
-        """
-        Return the first available one of:
-        * last price if within current bid/ask;
-        * average of bid and ask (midpoint);
-        * close price.
-        """
-        midpoint = self.midpoint
-        if (is_nan(midpoint) or self.bid <= self.last <= self.ask):
-            price = self.last
-        else:
-            price = nan
-
-        if is_nan(price):
-            price = midpoint
-        if is_nan(price) or price == -1:
-            price = self.close
-        return price
-
-
-class StockAsset(Asset):
+class UStock(UnderlyingAsset):
     def __init__(self,
                  code: str,
                  data_source: DataSource = DataSource.IB,
                  currency: Currency = CURRENCY) -> None:
         super().__init__(code, AssetType.Stock, data_source, currency)
 
-
-class StockDataAsset(StockAsset):
+class UIndex(UnderlyingAsset):
     def __init__(self,
                  code: str,
                  data_source: DataSource = DataSource.IB,
                  currency: Currency = CURRENCY) -> None:
-        super().__init__(code, data_source, currency)
+        super().__init__(code, AssetType.Index, data_source, currency)
+
+class UnderlyingDataAsset(UnderlyingAsset):
+    def __init__(self,
+                 code: str,
+                 asset_type: AssetType,
+                 data_source: DataSource = DataSource.IB,
+                 currency: Currency = CURRENCY) -> None:
+        super().__init__(code, asset_type, data_source, currency)
         self._data = None
+        self._data_source_id = None
         self._historical_data = None
         self._historical_IV_data = None
+        self._historical_updated = None
+        self._historical_IV_updated = None
 
     @property
-    def current_data(self):
-        return [self._data]
+    def current(self):
+        return self._data
 
-    @current_data.setter
-    def current_data(self, values):
+    @current.setter
+    def current(self, values):
         self._data = values
 
     @property
-    def historical_data(self):
+    def historical(self):
         return self._historical_data
 
-    @historical_data.setter
-    def historical_data(self, values):
+    @historical.setter
+    def historical(self, values):
         self._historical_data = values
         self._historical_data_updated = datetime.datetime.now()
 
     @property
-    def historical_IV_data(self):
+    def historical_IV(self):
         return self._historical_IV_data
 
-    @historical_IV_data.setter
-    def historical_IV_data(self, values):
+    @historical_IV.setter
+    def historical_IV(self, values):
         self._historical_IV_data = values
         self._historical_data_updated = datetime.datetime.now()
 
@@ -212,10 +133,30 @@ class StockDataAsset(StockAsset):
     def market_price(self):
         return self._data.market_price
 
+    def historical_is_updated(self) -> bool:
+        if self._historical_updated:
+            delta = datetime.datetime.now() - self._historical_data_updated
+            if delta.days:
+                return True
+            else:
+                return False
+        else:
+            return False
 
-class StockData():
+    def historical_IV_is_updated(self) -> bool:
+        if self._historical_IV_updated:
+            delta = datetime.datetime.now() - self._historical_IV_data_updated
+            if delta.days:
+                return True
+            else:
+                return False
+        else:
+            return False
+
+class UnderlyingData():
     def __init__(self,
                  code: str,
+                 asset_type: AssetType,
                  high: float = nan,
                  low: float = nan,
                  close: float = nan,
@@ -227,7 +168,7 @@ class StockData():
                  last_size: float = nan,
                  time: datetime.datetime = None) -> None:
         self.code = code
-        self.asset_type = AssetType.Index
+        self.asset_type = asset_type
         self.high = high
         self.low = low
         self.close = close
@@ -238,6 +179,12 @@ class StockData():
         self.last = last
         self.last_size = last_size
         self.time = time
+        self.IV_rank = None
+        self.IV_percentile = None
+
+    @property
+    def asset_id(self) -> str:
+        return self.code + '_' + self.asset_type.value
 
     @property
     def midpoint(self) -> float:
@@ -262,6 +209,8 @@ class StockData():
         if is_nan(price) or price == -1:
             price = self.close
         return price
+
+
 
 
 class OptionChainAsset(Asset):

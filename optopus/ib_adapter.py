@@ -8,6 +8,7 @@ Created on Sun Aug  5 07:21:38 2018
 # from ib_insync import *
 import datetime
 from enum import Enum
+from typing import List
 from pathlib import Path
 
 from ib_insync.ib import IB
@@ -20,14 +21,14 @@ from ib_insync.contract import Contract
 from optopus.account import AccountItem
 from optopus.money import Money
 from optopus.data_objects import (AssetType, Asset,
-                                  IndexAsset, IndexData,
-                                  StockAsset, StockData,
                                   OptionChainAsset, OptionData,
                                   OptionRight, DataSource,
                                   OptionMoneyness, BarDataType, BarData,
                                   PositionData, OwnershipType,
                                   OrderData, OrderAction, OrderType, 
-                                  OrderStatus, TradeData)
+                                  OrderStatus, TradeData,
+                                  UnderlyingData, UnderlyingAsset,
+                                  UnderlyingDataAsset)
 from optopus.data_manager import DataAdapter
 from optopus.settings import CURRENCY, HISTORICAL_DAYS, DATA_DIR
 from optopus.utils import nan, parse_ib_date, format_ib_date
@@ -38,7 +39,7 @@ class IBObject(Enum):
     order = 'ORDER'
 
 
-class IBIndexAsset(IndexAsset):
+class IBIndexAsset(Asset):
     def __init__(self,
                  code: str,
                  data_source: DataSource,
@@ -65,7 +66,7 @@ class IBIndexAsset(IndexAsset):
                 return False
 
 
-class IBStockAsset(StockAsset):
+class IBStockAsset(Asset):
     def __init__(self,
                  code: str,
                  data_source: DataSource,
@@ -111,7 +112,7 @@ class IBBrokerAdapter:
         self._port = port
         self._client = client
         self._translator = IBTranslator()
-        self._data_adapter = IBDataAdapter(self._broker)
+        self._data_adapter = IBDataAdapter(self._broker, self._translator)
 
         # Callable objects. Optopus direcction
         self.emit_account_item_event = None
@@ -367,45 +368,12 @@ class IBTranslator:
         return trade
 
 class IBDataAdapter(DataAdapter):
-    def __init__(self, broker: IB) -> None:
+    def __init__(self, broker: IB, translator: IBTranslator) -> None:
         self._broker = broker
+        self._translator = translator
         self.assets = {}
         self._contracts = {}        
 
-
-    def register_index(self, asset: IndexAsset) -> bool:
-        started = False
-        if asset.asset_id not in self.assets:
-                contract = Index(asset.code, currency=CURRENCY.value)
-                q_contract = self._broker.qualifyContracts(contract)
-                if len(q_contract) == 1:
-                    # create a new series object and add to series dict
-                    iba = IBIndexAsset(code=asset.code,
-                                       data_source=asset.data_source,
-                                       contract=q_contract[0])
-
-                    self.assets[asset.asset_id] = iba
-                    started = True
-                else:
-                    raise ValueError('Error: multiple contracts')
-        return started
-
-    def register_stock(self, asset: StockAsset) -> bool:
-        started = False
-        if asset.asset_id not in self.assets:
-                contract = Stock(asset.code, exchange='SMART', currency=CURRENCY.value)
-                q_contract = self._broker.qualifyContracts(contract)
-                if len(q_contract) == 1:
-                    # create a new series object and add to series dict
-                    iba = IBStockAsset(code=asset.code,
-                                       data_source=asset.data_source,
-                                       contract=q_contract[0])
-
-                    self.assets[asset.asset_id] = iba
-                    started = True
-                else:
-                    raise ValueError('Error: multiple contracts')
-        return started
 
     def register_option(self, asset: OptionChainAsset) -> bool:
         if asset.asset_id not in self.assets:
@@ -420,39 +388,107 @@ class IBDataAdapter(DataAdapter):
 
             self.assets[asset.asset_id] = iba
 
-    def fetch_current_data_index(self, asset: Asset) -> object:
-        iba = self.assets[asset.asset_id]
-        [d] = self._broker.reqTickers(iba.contract)
-        data_index = IndexData(code=iba.contract.symbol,
-                               high=d.high,
-                               low=d.low,
-                               close=d.close,
-                               bid=d.bid,
-                               bid_size=d.bidSize,
-                               ask=d.ask,
-                               ask_size=d.askSize,
-                               last=d.last,
-                               last_size=d.lastSize,
-                               time=d.time)
-        return data_index
-    
-    def fetch_current_data_stock(self, asset: Asset) -> object:
-        iba = self.assets[asset.asset_id]
-        [d] = self._broker.reqTickers(iba.contract)
-        data_stock = StockData(code=iba.contract.symbol,
-                               high=d.high,
-                               low=d.low,
-                               close=d.close,
-                               bid=d.bid,
-                               bid_size=d.bidSize,
-                               ask=d.ask,
-                               ask_size=d.askSize,
-                               last=d.last,
-                               last_size=d.lastSize,
-                               time=d.time)
-        return data_stock
+    def create_underlyings(self, assets: List[UnderlyingAsset]) -> List[UnderlyingDataAsset]:
+        contracts = []
+        for asset in assets:
+            if asset.data_source == DataSource.IB:
+                if asset.asset_type == AssetType.Index:
+                    contracts.append(Index(asset.code,
+                                           currency=CURRENCY.value))
+                elif asset.asset_type == AssetType.Stock:
+                    contracts.append(Stock(asset.code,
+                                           exchange='SMART',
+                                           currency=CURRENCY.value))
+        # It works if len(contracts) < 50. IB limit.
 
-    def fetch_current_data_option(self, asset: Asset, underlying_price: float) -> object:
+        q_contracts = self._broker.qualifyContracts(*contracts)
+        if len(q_contracts) == len(assets):
+            tickers = self._broker.reqTickers(*q_contracts)
+        else:
+            raise ValueError('Error: ambiguous contracts')
+
+        data_assets = []
+        for t in tickers:
+                asset_type = self._translator._sectype_translation[t.contract.secType]
+                if asset_type == AssetType.Stock or asset_type == AssetType.Index:
+                    uda = UnderlyingDataAsset(code=t.contract.symbol,
+                                              asset_type=asset_type,
+                                              data_source=DataSource.IB)
+                    uda.data_source_id = t.contract
+                    uda.current_data = (UnderlyingData(code=t.contract.symbol,
+                                                       asset_type = asset_type,
+                                                       high=t.high,
+                                                       low=t.low,
+                                                       close=t.close,
+                                                       bid=t.bid,
+                                                       bid_size=t.bidSize,
+                                                       ask=t.ask,
+                                                       ask_size=t.askSize,
+                                                       last=t.last,
+                                                       last_size=t.lastSize,
+                                                       time=t.time))
+                    data_assets.append(uda)
+        return data_assets
+
+
+    def update_underlyings(self, underlyings: List[UnderlyingDataAsset]) -> List[UnderlyingData]: 
+        contracts = [u.data_source_id for u in underlyings]
+        tickers = self._broker.reqTickers(*contracts)
+        data = []
+        for t in tickers:
+            asset_type = self._translator._sectype_translation[t.contract.secType]
+            ud = UnderlyingData(code=t.contract.symbol,
+                                asset_type = asset_type,
+                                high=t.high,
+                                low=t.low,
+                                close=t.close,
+                                bid=t.bid,
+                                bid_size=t.bidSize,
+                                ask=t.ask,
+                                ask_size=t.askSize,
+                                last=t.last,
+                                last_size=t.lastSize,
+                                time=t.time)
+            data.append(ud)
+        return data
+
+    def update_historical(self, uda: UnderlyingDataAsset) -> None:
+        duration = str(HISTORICAL_DAYS) + ' D'
+        bars = self._broker.reqHistoricalData(uda.data_source_id,
+                                              endDateTime='',
+                                              durationStr=duration,
+                                              barSizeSetting='1 day',
+                                              whatToShow='TRADES',
+                                              useRTH=True,
+                                              formatDate=1)
+        return self._process_bars(uda.code, bars)
+
+    def update_historical_IV(self, uda: UnderlyingDataAsset) -> None:
+        duration = str(HISTORICAL_DAYS) + ' D'
+        bars = self._broker.reqHistoricalData(uda.data_source_id,
+                                              endDateTime='',
+                                              durationStr=duration,
+                                              barSizeSetting='1 day',
+                                              whatToShow='OPTION_IMPLIED_VOLATILITY',
+                                              useRTH=True,
+                                              formatDate=1)
+        return self._process_bars(uda.code, bars)
+
+    def _process_bars(self, code: str, ibbars: list) -> list:
+        bars = []
+        for ibb in ibbars:
+            b = BarData(code=code,
+                        bar_time=ibb.date,
+                        bar_open=ibb.open,
+                        bar_high=ibb.high,
+                        bar_low=ibb.low,
+                        bar_close=ibb.close,
+                        bar_average=ibb.average,
+                        bar_count=ibb.barCount)
+            bars.append(b)
+        return bars
+
+    def update_current_data_option(self, asset: Asset, underlying_price: float) -> object:
         # Ask for options chains
         iba = self.assets[asset.asset_id]
         chains = self._broker.reqSecDefOptParams(iba.contract.symbol,
@@ -601,33 +637,7 @@ class IBDataAdapter(DataAdapter):
             bars.append(b)
         return bars
 
-    def fetch_historical_data_asset(self, asset: Asset) -> None:
-        iba = self.assets[asset.asset_id]
-        if iba.asset_type == AssetType.Index or iba.asset_type == AssetType.Stock:
-            if not iba.historical_data_is_updated():
-                duration = str(HISTORICAL_DAYS) + ' D'
-                bars = self._broker.reqHistoricalData(iba.contract,
-                                                      endDateTime='',
-                                                      durationStr=duration,
-                                                      barSizeSetting='1 day',
-                                                      whatToShow='TRADES',
-                                                      useRTH=True,
-                                                      formatDate=1)
-                return self._process_bars(iba.code, bars)
 
-    def fetch_historical_IV_data_asset(self, asset: Asset) -> None:
-        iba = self.assets[asset.asset_id]
-        if iba.asset_type == AssetType.Index or iba.asset_type == AssetType.Stock:
-            if not iba.historical_IV_data_is_updated():
-                duration = str(HISTORICAL_DAYS) + ' D'
-                bars = self._broker.reqHistoricalData(iba.contract,
-                                                      endDateTime='',
-                                                      durationStr=duration,
-                                                      barSizeSetting='1 day',
-                                                      whatToShow='OPTION_IMPLIED_VOLATILITY',
-                                                      useRTH=True,
-                                                      formatDate=1)
-                return self._process_bars(iba.code, bars)
 
 
 def is_number(s: str) -> bool:

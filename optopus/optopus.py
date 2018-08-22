@@ -5,6 +5,8 @@ Created on Sat Aug  4 16:30:25 2018
 
 @author: ilia
 """
+from typing import List
+from collections import OrderedDict
 from optopus.account import Account, AccountItem
 from optopus.data_manager import DataManager, DataSource
 from optopus.data_objects import Asset, BarDataType
@@ -14,9 +16,10 @@ from optopus.order_manager import OrderManager
 class Optopus():
     """Class implementing automated trading system"""
 
-    def __init__(self, broker) -> None:
+    def __init__(self, broker, assets: list) -> None:
         self._broker = broker
         self._account = Account()
+        self._universe = assets
         
     def start(self) -> None:
         print('[Initializating managers...]')
@@ -35,10 +38,11 @@ class Optopus():
 
         print('[Connecting to IB broker...]')
         self._broker.connect()
-        self._broker.sleep(2)
+        self._broker.sleep(1)
 
         print('[Updating values...]')
         self._data_manager.match_trades_positions()
+        self._data_manager.create_underlyings(self._universe)
 
     def stop(self) -> None:
         self._broker.disconnect()
@@ -72,8 +76,8 @@ class Optopus():
     def current(self, assets: Asset, fields: list) -> object:
         return self._data_manager.current(assets, fields)
 
-    def update_assets(self) -> None:
-        self._data_manager.update_assets()
+    def underlyings(self, fields: List[str]) -> List[OrderedDict]:
+        return (self._data_manager.underlyings(fields))
 
     def historical(self, assets: list, fields: list) -> object:
         return self._data_manager.historical(assets, fields, BarDataType.Trades)
