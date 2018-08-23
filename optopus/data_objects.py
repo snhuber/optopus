@@ -38,6 +38,7 @@ class OrderAction(Enum):
     Buy = 'BUY'
     Sell = 'SELL'
 
+
 class OptionRight(Enum):
     Call = 'C'
     Put = 'P'
@@ -82,12 +83,14 @@ class UStock(UnderlyingAsset):
                  currency: Currency = CURRENCY) -> None:
         super().__init__(code, AssetType.Stock, data_source, currency)
 
+
 class UIndex(UnderlyingAsset):
     def __init__(self,
                  code: str,
                  data_source: DataSource = DataSource.IB,
                  currency: Currency = CURRENCY) -> None:
         super().__init__(code, AssetType.Index, data_source, currency)
+
 
 class UnderlyingDataAsset(UnderlyingAsset):
     def __init__(self,
@@ -102,6 +105,7 @@ class UnderlyingDataAsset(UnderlyingAsset):
         self._historical_IV_data = None
         self._historical_updated = None
         self._historical_IV_updated = None
+        self._option_chain = None
 
     @property
     def current(self):
@@ -135,7 +139,7 @@ class UnderlyingDataAsset(UnderlyingAsset):
 
     def historical_is_updated(self) -> bool:
         if self._historical_updated:
-            delta = datetime.datetime.now() - self._historical_data_updated
+            delta = datetime.datetime.now() - self._historical_updated
             if delta.days:
                 return True
             else:
@@ -145,13 +149,14 @@ class UnderlyingDataAsset(UnderlyingAsset):
 
     def historical_IV_is_updated(self) -> bool:
         if self._historical_IV_updated:
-            delta = datetime.datetime.now() - self._historical_IV_data_updated
+            delta = datetime.datetime.now() - self._historical_IV_updated
             if delta.days:
                 return True
             else:
                 return False
         else:
             return False
+
 
 class UnderlyingData():
     def __init__(self,
@@ -166,6 +171,7 @@ class UnderlyingData():
                  ask_size: float = nan,
                  last: float = nan,
                  last_size: float = nan,
+                 volume: float = nan,
                  time: datetime.datetime = None) -> None:
         self.code = code
         self.asset_type = asset_type
@@ -179,8 +185,12 @@ class UnderlyingData():
         self.last = last
         self.last_size = last_size
         self.time = time
-        self.IV_rank = None
-        self.IV_percentile = None
+        self.volume = volume
+        self.IV_h = None
+        self.IV_rank_h = None
+        self.IV_percentile_h = None
+        self.volume_h = None
+        self.stdev = None
 
     @property
     def asset_id(self) -> str:
@@ -209,36 +219,6 @@ class UnderlyingData():
         if is_nan(price) or price == -1:
             price = self.close
         return price
-
-
-
-
-class OptionChainAsset(Asset):
-    def __init__(self,
-                 underlying: Asset,
-                 n_expiration_dates: int = 3,
-                 underlying_distance: float = 1) -> None:
-        super().__init__(underlying.code, AssetType.Option, underlying.data_source, underlying.currency)
-        self.underlying = underlying
-        self.n_expiration_dates = n_expiration_dates
-        self.underlying_distance = underlying_distance
-
-
-class OptionChainDataAsset(OptionChainAsset):
-    def __init__(self,
-                 underlying: Asset,
-                 n_expiration_dates: int = 3,
-                 underlying_distance: float = 1) -> None:
-        super().__init__(underlying, n_expiration_dates, underlying_distance)
-        self._data = None
-
-    @property
-    def current_data(self):
-        return self._data
-
-    @current_data.setter
-    def current_data(self, values):
-        self._data = values
 
 
 class OptionData():
@@ -296,6 +276,7 @@ class OptionData():
         self.intrinsic_value = intrinsic_value
         self.extrinsic_value = extrinsic_value
         self.time = time
+        self.DTE = None
 
 
 class BarDataType(Enum):
@@ -312,7 +293,7 @@ class BarData():
                  bar_low: float = nan,
                  bar_close: float = nan,
                  bar_average: float = nan,
-                 bar_volumen: float = nan,
+                 bar_volume: float = nan,
                  bar_count: float = nan) -> None:
         self.code = code
         self.bar_time = bar_time
@@ -321,7 +302,7 @@ class BarData():
         self.bar_low = bar_low
         self.bar_close = bar_close
         self.bar_average = bar_average
-        self.bar_volumen = bar_volumen
+        self.bar_volume = bar_volume
         self.bar_count = bar_count
 
 
@@ -373,11 +354,11 @@ class SignalData():
         self.expiration = expiration
         self.strike = strike
         self.right = right
-        
+
         self.algorithm = algorithm
         self.strategy = strategy
         self.rol = rol
-        
+
         self.time = datetime.datetime.now()
 
 
@@ -412,9 +393,9 @@ class OrderData():
         self.expiration = expiration
         self.strike = strike
         self.right = right
-        
+
         self.reference = reference
-        
+
         self.time = datetime.datetime.now()
 
 
@@ -452,4 +433,3 @@ class TradeData:
         self.time = time
         self.price = price
         self.commission = commission
-

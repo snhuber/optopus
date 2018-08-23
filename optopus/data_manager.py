@@ -1,10 +1,11 @@
 # -*- coding: utf-8 -*-
+import datetime
 from typing import List
 from collections import OrderedDict
 import pickle
 from pathlib import Path
-from optopus.data_objects import (DataSource, Asset, AssetType, BarDataType, 
-                                  OptionChainDataAsset,
+from statistics import stdev
+from optopus.data_objects import (DataSource,
                                   PositionData, TradeData,
                                   UnderlyingAsset, UnderlyingDataAsset)
 from optopus.settings import HISTORICAL_DAYS, DATA_DIR
@@ -62,27 +63,103 @@ class DataManager():
 
     def create_underlyings(self, assets: list) -> None:
         # All the underlyings retrieve the data from the same data_source
+        print('- Creating underlyings: ', end='')
         udas = self._data_adapters[DataSource.IB].create_underlyings(assets)
         for uda in udas:
                 self._underlyings[uda.asset_id] = uda
+                print('.', end='')
 
-    def _update_underlyings(self) -> None:
+    def underlyings(self, fields: list) -> object:
+        values_list = list()
+        for u in self._underlyings.values():
+            d = OrderedDict()
+            d['code'] = getattr(u.current, 'code')
+
+            for field in fields:
+                if hasattr(u.current, field):
+                    d[field] = getattr(u.current, field)
+            values_list.append(d)
+        return values_list
+
+    def update_underlyings(self) -> None:
+        print('\n- Retriving current data: ', end='')
+        self._update_current_underlyings()
+        print('\n- Retriving historical data: ', end='')
+        self._update_historical_underlyings()
+        print('\n- Retriving historical IV data: ', end='')
+        self._update_historical_IV_underlyings()
+        print('\n- Computing fields: ', end='')
+        self._underlying_computation()
+
+    def _update_current_underlyings(self) -> None:
         # All the underlyings retrieve the data from the same data_source
         udas = [uda for uda in self._underlyings.values()]
         uds = self._data_adapters[DataSource.IB].update_underlyings(udas)
         for ud in uds:
             self._underlyings[ud.asset_id].current = ud
-            
+            print('.', end='')
+
     def _update_historical_underlyings(self) -> None:
         for u in self._underlyings.values():
             if not u.historical_is_updated():
                 u.historical = self._data_adapters[DataSource.IB].update_historical(u)
+                u._historical_updated = datetime.datetime.now()
+                print('.', end='')
 
     def _update_historical_IV_underlyings(self) -> None:
         for u in self._underlyings.values():
             if not u.historical_IV_is_updated():
                 u.historical_IV = self._data_adapters[DataSource.IB].update_historical_IV(u)
+                u._historical_IV_updated = datetime.datetime.now()
+                print('.', end='')
 
+    def _underlying_computation(self):
+        for u in self._underlyings.values():
+            #22 days = 1 month
+            u.current.stdev = stdev([bd.bar_close for bd in u._historical_data[:-22]])
+            #last historical value
+            u.current.volume_h = u._historical_data[-1].bar_volume
+            u.current.IV_h = u._historical_IV_data[-1].bar_close
+            u.current.IV_rank_h = self._IV_rank(u, u.current.IV_h)
+            u.current.IV_percentile_h = self._IV_percentile(u, u.current.IV_h)
+            print('.', end='')
+
+    def _IV_rank(self, uda: UnderlyingDataAsset, IV_value: float) -> float:
+            min_IV_values = [b.bar_low for b in uda.historical_IV]
+            max_IV_values = [b.bar_high for b in uda.historical_IV]
+            IV_min = min(min_IV_values)
+            IV_max = max(max_IV_values)
+            IV_rank = (IV_value - IV_min) / (IV_max - IV_min) * 100
+            return IV_rank
+            
+    def _IV_percentile(self, uda: UnderlyingDataAsset, IV_value: float) -> float:
+            IV_values = [b.bar_low for b in uda.historical_IV if b.bar_low < IV_value]
+            return len(IV_values) / HISTORICAL_DAYS * 100
+
+    def _create_optionchain(self, uda: UnderlyingDataAsset) -> None:
+        uda._option_chain = self._data_adapters[DataSource.IB].create_optionchain(uda)
+        self._option_chain_computation(uda)
+        print('.', end='')
+
+    def option_chain(self, ua: UnderlyingAsset, fields: List[str]) -> List[OrderedDict]:
+        uda = self._underlyings[ua.asset_id]
+        self._create_optionchain(uda)
+        values_list = list()
+        for data in uda._option_chain:
+            d = OrderedDict()
+            d['code'] = getattr(data, 'code')
+            d['expiration'] = getattr(data, 'expiration')
+            d['strike'] = getattr(data, 'strike')
+            d['right'] = getattr(data, 'right')
+            for field in fields:
+                if hasattr(data, field):
+                    d[field] = getattr(data, field)
+            values_list.append(d)
+        return values_list
+
+    def _option_chain_computation(self, uda: UnderlyingDataAsset) -> None:
+        for od in uda._option_chain:
+            od.DTE = (od.expiration - datetime.datetime.now().date()).days
 
     def match_trades_positions(self) -> None:
         file_name = Path.cwd() / DATA_DIR / "positions.pckl"
@@ -111,43 +188,7 @@ class DataManager():
             position_list.append(d)
         return position_list
 
-
-    def underlyings(self, fields: list) -> object:
-        self._update_underlyings()
-        self._update_historical_underlyings()
-        self._update_historical_IV_underlyings()
-        self._underlying_computation()
-        
-        values_list = list()
-        for u in self._underlyings.values():
-            d = OrderedDict()
-            d['code'] = getattr(u.current, 'code')       
-        
-            for field in fields:
-                if hasattr(u.current, field):
-                  d[field] = getattr(u.current, field)
-            values_list.append(d)           
-        return values_list
-
-
-    def _underlying_computation(self):
-        for u in self._underlyings.values():
-            u.current.IV_rank = self._IV_rank(u, u.current.market_price)
-            u.current.IV_percentile = self._IV_percentile(u, u.current.market_price)
-
-    def _IV_rank(self, uda: UnderlyingDataAsset, IV_value: float) -> float:
-            #data_asset = self._data_assets[asset.asset_id]
-            min_IV_values = [b.bar_low for b in uda.historical_IV]
-            max_IV_values = [b.bar_high for b in uda.historical_IV]
-            IV_min = min(min_IV_values) 
-            IV_max = max(max_IV_values)
-            IV_rank = (IV_value -IV_min) / (IV_max - IV_min) * 100
-            return IV_rank
-            
-    def _IV_percentile(self, uda: UnderlyingDataAsset, IV_value: float) -> float:
-            #data_asset = self._data_assets[asset.asset_id]
-            IV_values = [b.bar_low for b in uda.historical_IV if b.bar_low < IV_value]
-            return len(IV_values) / HISTORICAL_DAYS * 100
+    
 
             # If the asset is a Option, add others default fields
             #if data.asset_type == AssetType.Option:
