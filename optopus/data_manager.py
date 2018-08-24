@@ -6,22 +6,24 @@ import pickle
 from pathlib import Path
 from statistics import stdev
 from optopus.data_objects import (DataSource,
-                                  PositionData, TradeData,
-                                  UnderlyingAsset, UnderlyingDataAsset)
-from optopus.settings import HISTORICAL_DAYS, DATA_DIR
-from optopus.utils import nan, is_nan, parse_ib_date, format_ib_date
+                                  PositionData, TradeData, BarData,
+                                  Asset, AssetData)
+from optopus.settings import HISTORICAL_YEARS, DATA_DIR, STDEV_DAYS
+from optopus.utils import is_nan, format_ib_date
+from optopus.computation import calc_beta
 
 
-
-class DataAdapter():
+# I dond't like this class
+class DataAdapter:
     pass
 
 
 class DataManager():
-    def __init__(self) -> None:
+    def __init__(self,  watch_list: dict) -> None:
+        self._assets = {code: Asset(code, asset_type)
+                        for code, asset_type in watch_list.items()}
         self._catalog = {}
         self._data_adapters = {}
-        self._underlyings = {}
         self._data_positions = {}
 
     def add_data_adapter(self,
@@ -61,105 +63,107 @@ class DataManager():
         with open(file_name, 'wb') as file_handler:
                 pickle.dump(self._data_positions, file_handler)
 
-    def create_underlyings(self, assets: list) -> None:
+    def initialize_assets(self) -> None:
         # All the underlyings retrieve the data from the same data_source
-        print('- Creating underlyings: ', end='')
-        udas = self._data_adapters[DataSource.IB].create_underlyings(assets)
-        for uda in udas:
-                self._underlyings[uda.asset_id] = uda
+        print('- Initializing underlyings: ', end='')
+        data_source_ids = self._data_adapters[DataSource.IB].initialize_assets(self._assets.values())
+        for i in data_source_ids:
+                self._assets[i].data_source_id = data_source_ids[i]
                 print('.', end='')
 
-    def underlyings(self, fields: list) -> object:
+    def assets(self, fields: List[str]) -> List[OrderedDict]:
         values_list = list()
-        for u in self._underlyings.values():
-            d = OrderedDict()
-            d['code'] = getattr(u.current, 'code')
-
-            for field in fields:
-                if hasattr(u.current, field):
-                    d[field] = getattr(u.current, field)
-            values_list.append(d)
+        for a in self._assets.values():
+            values_list.append(a.current.to_dict(fields))
         return values_list
 
-    def update_underlyings(self) -> None:
+    def update_assets(self) -> None:
         print('\n- Retriving current data: ', end='')
-        self._update_current_underlyings()
+        self._update_current_assets()
         print('\n- Retriving historical data: ', end='')
-        self._update_historical_underlyings()
+        self._update_historical_assets()
         print('\n- Retriving historical IV data: ', end='')
-        self._update_historical_IV_underlyings()
+        self._update_historical_IV_assets()
         print('\n- Computing fields: ', end='')
-        self._underlying_computation()
+        self._assets_computation()
 
-    def _update_current_underlyings(self) -> None:
+    def _update_current_assets(self) -> None:
         # All the underlyings retrieve the data from the same data_source
-        udas = [uda for uda in self._underlyings.values()]
-        uds = self._data_adapters[DataSource.IB].update_underlyings(udas)
-        for ud in uds:
-            self._underlyings[ud.asset_id].current = ud
+        ads = self._data_adapters[DataSource.IB].update_assets(self._assets.values())
+        for ad in ads:
+            self._assets[ad.code].current = ad
             print('.', end='')
 
-    def _update_historical_underlyings(self) -> None:
-        for u in self._underlyings.values():
-            if not u.historical_is_updated():
-                u.historical = self._data_adapters[DataSource.IB].update_historical(u)
-                u._historical_updated = datetime.datetime.now()
+    def _update_historical_assets(self) -> None:
+        for a in self._assets.values():
+            if not a.historical_is_updated():
+                a.historical = self._data_adapters[DataSource.IB].update_historical(a)
+                a._historical_updated = datetime.datetime.now()
                 print('.', end='')
 
-    def _update_historical_IV_underlyings(self) -> None:
-        for u in self._underlyings.values():
-            if not u.historical_IV_is_updated():
-                u.historical_IV = self._data_adapters[DataSource.IB].update_historical_IV(u)
-                u._historical_IV_updated = datetime.datetime.now()
+    def _update_historical_IV_assets(self) -> None:
+        for a in self._assets.values():
+            if not a.historical_IV_is_updated():
+                a.historical_IV = self._data_adapters[DataSource.IB].update_historical_IV(a)
+                a._historical_IV_updated = datetime.datetime.now()
                 print('.', end='')
 
-    def _underlying_computation(self):
-        for u in self._underlyings.values():
-            #22 days = 1 month
-            u.current.stdev = stdev([bd.bar_close for bd in u._historical_data[:-22]])
-            #last historical value
-            u.current.volume_h = u._historical_data[-1].bar_volume
-            u.current.IV_h = u._historical_IV_data[-1].bar_close
-            u.current.IV_rank_h = self._IV_rank(u, u.current.IV_h)
-            u.current.IV_percentile_h = self._IV_percentile(u, u.current.IV_h)
+    def _assets_computation(self):
+        for a in self._assets.values(): 
+            a.current.stdev = stdev([bd.bar_close for bd in a._historical_data[:(-1 * STDEV_DAYS)]])
+            # last historical value
+            a.current.volume_h = a._historical_data[-1].bar_volume
+            a.current.IV_h = a._historical_IV_data[-1].bar_close
+            a.current.IV_rank_h = self._IV_rank(a, a.current.IV_h)
+            a.current.IV_percentile_h = self._IV_percentile(a, a.current.IV_h)
             print('.', end='')
 
-    def _IV_rank(self, uda: UnderlyingDataAsset, IV_value: float) -> float:
-            min_IV_values = [b.bar_low for b in uda.historical_IV]
-            max_IV_values = [b.bar_high for b in uda.historical_IV]
+        self._calculate_beta()
+
+    def _IV_rank(self, ad: AssetData, IV_value: float) -> float:
+            min_IV_values = [b.bar_low for b in ad.historical_IV]
+            max_IV_values = [b.bar_high for b in ad.historical_IV]
             IV_min = min(min_IV_values)
             IV_max = max(max_IV_values)
             IV_rank = (IV_value - IV_min) / (IV_max - IV_min) * 100
             return IV_rank
-            
-    def _IV_percentile(self, uda: UnderlyingDataAsset, IV_value: float) -> float:
-            IV_values = [b.bar_low for b in uda.historical_IV if b.bar_low < IV_value]
-            return len(IV_values) / HISTORICAL_DAYS * 100
 
-    def _create_optionchain(self, uda: UnderlyingDataAsset) -> None:
-        uda._option_chain = self._data_adapters[DataSource.IB].create_optionchain(uda)
-        self._option_chain_computation(uda)
+    def _calculate_beta(self) -> None:
+        for code, beta in calc_beta(self._assets_matrix('bar_close')).items():
+            self._assets[code].current.beta = beta
+
+    def _IV_percentile(self, ad: AssetData, IV_value: float) -> float:
+            IV_values = [b.bar_low for b in ad.historical_IV if b.bar_low < IV_value]
+            return len(IV_values) / (HISTORICAL_YEARS * 252) * 100
+
+    def _create_optionchain(self, a: Asset) -> None:
+        a._option_chain = self._data_adapters[DataSource.IB].create_optionchain(a)
+        self._option_chain_computation(a)
         print('.', end='')
 
-    def option_chain(self, ua: UnderlyingAsset, fields: List[str]) -> List[OrderedDict]:
-        uda = self._underlyings[ua.asset_id]
-        self._create_optionchain(uda)
+    def option_chain(self, code: str, fields: List[str]) -> List[OrderedDict]:
+        a = self._assets[code]
+        self._create_optionchain(a)
         values_list = list()
-        for data in uda._option_chain:
-            d = OrderedDict()
-            d['code'] = getattr(data, 'code')
-            d['expiration'] = getattr(data, 'expiration')
-            d['strike'] = getattr(data, 'strike')
-            d['right'] = getattr(data, 'right')
-            for field in fields:
-                if hasattr(data, field):
-                    d[field] = getattr(data, field)
-            values_list.append(d)
+        for od in a._option_chain:
+            values_list.append(od.to_dict(fields))
         return values_list
 
-    def _option_chain_computation(self, uda: UnderlyingDataAsset) -> None:
-        for od in uda._option_chain:
+    def _option_chain_computation(self, a: Asset) -> None:
+        for od in a._option_chain:
             od.DTE = (od.expiration - datetime.datetime.now().date()).days
+
+    def asset_historic(self, code: str) -> List[OrderedDict]:
+        return self._bar(self._assets[code]._historical_data)
+
+    def asset_historic_IV(self, code: str) -> List[OrderedDict]:
+        return self._bar(self._assets[code]._historical_IV_data)
+
+    def _bar(self, bds: List[BarData]) -> List[OrderedDict]:
+        bar_list = []
+        for bd in bds:
+            bar_list.append(bd.to_dict())
+        return bar_list
 
     def match_trades_positions(self) -> None:
         file_name = Path.cwd() / DATA_DIR / "positions.pckl"
@@ -170,28 +174,17 @@ class DataManager():
             if k in positions_bk.keys():
                 if positions_bk[k].trades:
                     p.trades = positions_bk[k].trades
- 
+
         self._write_positions()
 
     def positions(self) -> object:
         position_list = list()
-        for k, position in self._data_positions.items():
-            d = OrderedDict()
-            d['code'] = position.code
-            d['asset_type'] = position.asset_type.value
-            d['expiration'] = position.expiration
-            d['strike'] = position.strike
-            d['right'] = position.right.value
-            d['ownership'] = position.ownership.value
-            d['quantity'] = position.quantity
-            d['average_cost'] = position.average_cost
-            position_list.append(d)
+        for position in self._data_positions.values():
+            position_list.append(position.to_dict())
         return position_list
 
-    
-
-            # If the asset is a Option, add others default fields
-            #if data.asset_type == AssetType.Option:
-            #    d['expiration'] = getattr(data, 'expiration')
-            #    d['strike'] = getattr(data, 'strike')
-            #    d['right'] = getattr(data, 'right')
+    def _assets_matrix(self, field: str) -> dict:
+        d = {}
+        for a in self._assets.values():
+            d[a.code] = [getattr(bd, field) for bd in a._historical_data]
+        return d

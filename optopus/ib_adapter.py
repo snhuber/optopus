@@ -10,7 +10,7 @@ import datetime
 from typing import List
 from pathlib import Path
 
-from ib_insync.ib import IB
+from ib_insync.ib import IB, Contract
 from ib_insync.contract import Index, Option, Stock
 from ib_insync.objects import (AccountValue, Position, Fill,
                                CommissionReport)
@@ -19,15 +19,14 @@ from ib_insync.order import Trade, LimitOrder
 from optopus.account import AccountItem
 from optopus.money import Money
 from optopus.data_objects import (AssetType,
-                                  UnderlyingData, OptionData,
-                                  UnderlyingAsset, UnderlyingDataAsset,
+                                  Asset, AssetData, OptionData,
                                   OptionRight, DataSource,
                                   OptionMoneyness, BarData,
                                   PositionData, OwnershipType,
                                   OrderAction, OrderType,
                                   OrderStatus, TradeData)
 from optopus.data_manager import DataAdapter
-from optopus.settings import (CURRENCY, HISTORICAL_DAYS, DTE_MAX, DTE_MIN,
+from optopus.settings import (CURRENCY, HISTORICAL_YEARS, DTE_MAX, DTE_MIN,
                               EXPIRATIONS)
 from optopus.utils import nan, parse_ib_date, format_ib_date
 
@@ -104,7 +103,7 @@ class IBBrokerAdapter:
             f.write(t)
         trade_data = self._translator.translate_trade(trade)
 
-        self._broker.sleep(1) # wait for new position event
+        self._broker.sleep(1)  # wait for new position event
 
         self.emit_commission_report(trade_data)
 
@@ -272,80 +271,64 @@ class IBDataAdapter(DataAdapter):
         self._broker = broker
         self._translator = translator
 
-    def create_underlyings(self, assets: List[UnderlyingAsset]) -> List[UnderlyingDataAsset]:
+    def initialize_assets(self, assets: List[Asset]) -> dict:
         contracts = []
         for asset in assets:
-            if asset.data_source == DataSource.IB:
-                if asset.asset_type == AssetType.Index:
-                    contracts.append(Index(asset.code,
-                                           currency=CURRENCY.value))
-                elif asset.asset_type == AssetType.Stock:
-                    contracts.append(Stock(asset.code,
-                                           exchange='SMART',
-                                           currency=CURRENCY.value))
+            if asset.asset_type == AssetType.Index:
+                contracts.append(Index(asset.code,
+                                       currency=CURRENCY.value))
+            elif asset.asset_type == AssetType.Stock:
+                contracts.append(Stock(asset.code,
+                                       exchange='SMART',
+                                       currency=CURRENCY.value))
         # It works if len(contracts) < 50. IB limit.
-
         q_contracts = self._broker.qualifyContracts(*contracts)
         if len(q_contracts) == len(assets):
-            tickers = self._broker.reqTickers(*q_contracts)
+            return {c.symbol: c for c in q_contracts}
         else:
             raise ValueError('Error: ambiguous contracts')
 
-        data_assets = []
-        for t in tickers:
-                asset_type = self._translator._sectype_translation[t.contract.secType]
-                if asset_type == AssetType.Stock or asset_type == AssetType.Index:
-                    uda = UnderlyingDataAsset(code=t.contract.symbol,
-                                              asset_type=asset_type,
-                                              data_source=DataSource.IB)
-                    uda.data_source_id = t.contract
-                    data_assets.append(uda)
-        return data_assets
-
-    def update_underlyings(self, underlyings: List[UnderlyingDataAsset]) -> List[UnderlyingData]: 
-        contracts = [u.data_source_id for u in underlyings]
+    def update_assets(self, assets: List[Asset]) -> List[AssetData]:
+        contracts = [a.data_source_id for a in assets]
         tickers = self._broker.reqTickers(*contracts)
         data = []
         for t in tickers:
             asset_type = self._translator._sectype_translation[t.contract.secType]
-            ud = UnderlyingData(code=t.contract.symbol,
-                                asset_type = asset_type,
-                                high=t.high,
-                                low=t.low,
-                                close=t.close,
-                                bid=t.bid,
-                                bid_size=t.bidSize,
-                                ask=t.ask,
-                                ask_size=t.askSize,
-                                last=t.last,
-                                last_size=t.lastSize,
-                                volume=t.volume,
-                                time=t.time)
-            data.append(ud)
+            ad = AssetData(code=t.contract.symbol,
+                           asset_type=asset_type,
+                           high=t.high,
+                           low=t.low,
+                           close=t.close,
+                           bid=t.bid,
+                           bid_size=t.bidSize,
+                           ask=t.ask,
+                           ask_size=t.askSize,
+                           last=t.last,
+                           last_size=t.lastSize,
+                           volume=t.volume,
+                           time=t.time)
+            data.append(ad)
         return data
 
-    def update_historical(self, uda: UnderlyingDataAsset) -> None:
-        duration = str(HISTORICAL_DAYS) + ' D'
-        bars = self._broker.reqHistoricalData(uda.data_source_id,
+    def update_historical(self, a: Asset) -> None:
+        bars = self._broker.reqHistoricalData(a.data_source_id,
                                               endDateTime='',
-                                              durationStr=duration,
+                                              durationStr=str(HISTORICAL_YEARS) + ' Y',
                                               barSizeSetting='1 day',
                                               whatToShow='TRADES',
                                               useRTH=True,
                                               formatDate=1)
+        return self._translate_bars(a.code, bars)
 
-        return self._translate_bars(uda.code, bars)
-
-    def update_historical_IV(self, uda: UnderlyingDataAsset) -> None:
-        duration = str(HISTORICAL_DAYS) + ' D'
-        bars = self._broker.reqHistoricalData(uda.data_source_id,
+    def update_historical_IV(self, a: Asset) -> None:
+        bars = self._broker.reqHistoricalData(a.data_source_id,
                                               endDateTime='',
-                                              durationStr=duration,
+                                              durationStr=str(HISTORICAL_YEARS) + ' Y',
                                               barSizeSetting='1 day',
                                               whatToShow='OPTION_IMPLIED_VOLATILITY',
                                               useRTH=True,
                                               formatDate=1)
-        return self._translate_bars(uda.code, bars)
+        return self._translate_bars(a.code, bars)
 
     def _translate_bars(self, code: str, ibbars: list) -> list:
         bars = []
@@ -362,35 +345,31 @@ class IBDataAdapter(DataAdapter):
             bars.append(b)
         return bars
 
-    def create_optionchain(self, uda: UnderlyingDataAsset) -> List[OptionData]:
-        chains = self._broker.reqSecDefOptParams(uda.data_source_id.symbol,
+    def create_optionchain(self, a: Asset) -> List[OptionData]:
+        chains = self._broker.reqSecDefOptParams(a.data_source_id.symbol,
                                                  '',
-                                                 uda.data_source_id.secType,
-                                                 uda.data_source_id.conId)
-        
-        chain = next(c for c in chains 
-                      if c.tradingClass == uda.data_source_id.symbol
-                      and c.exchange == 'SMART')
+                                                 a.data_source_id.secType,
+                                                 a.data_source_id.conId)
 
+        chain = next(c for c in chains
+                     if c.tradingClass == a.data_source_id.symbol
+                     and c.exchange == 'SMART')
         if chain:
-            underlying_price = uda.current.market_price
-            width = uda.current.stdev
+            underlying_price = a.current.market_price
+            width = a.current.stdev
             expirations = [exp for exp in chain.expirations]
             expirations = [e for e in expirations if parse_ib_date(e) in EXPIRATIONS]
             expirations = [e for e in expirations if (parse_ib_date(e) - datetime.datetime.now().date()).days < DTE_MAX and 
                                                     (parse_ib_date(e) - datetime.datetime.now().date()).days > DTE_MIN]
             expirations = sorted(expirations)
-            format_ib_date
-            # underlying price - %distance
             min_strike_price = underlying_price - width * 1.5
-            # underlying price + %distance
             max_strike_price = underlying_price + width * 1.5
             strikes = sorted(strike for strike in chain.strikes
                        if min_strike_price < strike < max_strike_price)
             rights=['P','C']
 
             # Create the options contracts
-            contracts = [Option(uda.data_source_id.symbol,
+            contracts = [Option(a.data_source_id.symbol,
                                 expiration,
                                 strike,
                                 right,
@@ -398,7 +377,6 @@ class IBDataAdapter(DataAdapter):
                                 for right in rights
                                 for expiration in expirations
                                 for strike in strikes]
-            print(contracts)
             q_contracts = []
             # IB has a limit of 50 requests per second
             for c in chunks(contracts, 50):
@@ -406,12 +384,21 @@ class IBDataAdapter(DataAdapter):
                 self._broker.sleep(1)
 
             tickers = []
-            print("Contracts: {} Unqualified: {}".
-                  format(len(contracts), len(contracts) - len(q_contracts)))
+            #print("Contracts: {} Unqualified: {}".
+            #      format(len(contracts), len(contracts) - len(q_contracts)))
+            
             for q in chunks(q_contracts, 50):
                 tickers += self._broker.reqTickers(*q)
                 self._broker.sleep(1)
                 
+            return self.create_options(q_contracts)
+
+    def create_options(self, q_contracts: List[Contract]) -> List[OptionData]:
+            tickers = []
+            for q in chunks(q_contracts, 50):
+                tickers += self._broker.reqTickers(*q)
+                self._broker.sleep(1)
+
             options = []
             for t in tickers:
                 # There others Greeks for bid, ask and last prices
@@ -422,8 +409,7 @@ class IBDataAdapter(DataAdapter):
                 moneyness = OptionMoneyness.NA
                 intrinsic_value = extrinsic_value = nan
 
-                if t.modelGreeks:                    
-
+                if t.modelGreeks:
                     delta = t.modelGreeks.delta
                     gamma = t.modelGreeks.gamma
                     theta = t.modelGreeks.theta
@@ -431,8 +417,8 @@ class IBDataAdapter(DataAdapter):
                     option_price = t.modelGreeks.optPrice
                     implied_volatility = t.modelGreeks.impliedVol
                     underlying_price = t.modelGreeks.undPrice
-                    underlying_dividends = t.modelGreeks.pvDividend                  
-                    
+                    underlying_dividends = t.modelGreeks.pvDividend
+
                     if underlying_price:
                         moneyness, intrinsic_value, extrinsic_value = \
                         self._calculate_moneyness(t.contract.strike,
@@ -464,24 +450,23 @@ class IBDataAdapter(DataAdapter):
                         underlying_price=underlying_price,
                         underlying_dividends=underlying_dividends,
                         moneyness=moneyness.value,
-                        intrinsic_value = intrinsic_value,
-                        extrinsic_value = extrinsic_value,
+                        intrinsic_value=intrinsic_value,
+                        extrinsic_value=extrinsic_value,
                         time=t.time)
 
                 options.append(opt)
-
-        return options                
+            return options
 
     def _calculate_moneyness(self, strike: float,
                              option_price: float,
-                             underlying_price: float, 
+                             underlying_price: float,
                              right: str) -> OptionMoneyness:
 
         intrinsic_value = extrinsic_value = 0
 
         if right == 'C':
             intrinsic_value = max(0, underlying_price - strike)
-            if underlying_price > strike:                
+            if underlying_price > strike:
                 moneyness = OptionMoneyness.InTheMoney
             elif underlying_price < strike:
                 moneyness = OptionMoneyness.OutTheMoney

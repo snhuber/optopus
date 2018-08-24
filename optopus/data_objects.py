@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
-from enum import Enum
+from collections import OrderedDict
 import datetime
+from enum import Enum
+from typing import List
 from optopus.utils import nan, is_nan
 from optopus.currency import Currency
 from optopus.settings import CURRENCY
@@ -61,44 +63,6 @@ class Asset():
         self.asset_type = asset_type
         self.data_source = data_source
         self.currency = CURRENCY
-
-    @property
-    def asset_id(self) -> str:
-        return self.code + '_' + self.asset_type.value
-
-
-class UnderlyingAsset(Asset):
-    def __init__(self,
-                 code: str,
-                 asset_type: AssetType,
-                 data_source: DataSource = DataSource.IB,
-                 currency: Currency = CURRENCY) -> None:
-        super().__init__(code, asset_type, data_source, currency)
-
-
-class UStock(UnderlyingAsset):
-    def __init__(self,
-                 code: str,
-                 data_source: DataSource = DataSource.IB,
-                 currency: Currency = CURRENCY) -> None:
-        super().__init__(code, AssetType.Stock, data_source, currency)
-
-
-class UIndex(UnderlyingAsset):
-    def __init__(self,
-                 code: str,
-                 data_source: DataSource = DataSource.IB,
-                 currency: Currency = CURRENCY) -> None:
-        super().__init__(code, AssetType.Index, data_source, currency)
-
-
-class UnderlyingDataAsset(UnderlyingAsset):
-    def __init__(self,
-                 code: str,
-                 asset_type: AssetType,
-                 data_source: DataSource = DataSource.IB,
-                 currency: Currency = CURRENCY) -> None:
-        super().__init__(code, asset_type, data_source, currency)
         self._data = None
         self._data_source_id = None
         self._historical_data = None
@@ -158,7 +122,7 @@ class UnderlyingDataAsset(UnderlyingAsset):
             return False
 
 
-class UnderlyingData():
+class AssetData():
     def __init__(self,
                  code: str,
                  asset_type: AssetType,
@@ -191,10 +155,7 @@ class UnderlyingData():
         self.IV_percentile_h = None
         self.volume_h = None
         self.stdev = None
-
-    @property
-    def asset_id(self) -> str:
-        return self.code + '_' + self.asset_type.value
+        self.beta = None
 
     @property
     def midpoint(self) -> float:
@@ -219,6 +180,14 @@ class UnderlyingData():
         if is_nan(price) or price == -1:
             price = self.close
         return price
+
+    def to_dict(self, fields: List[str]) -> OrderedDict:
+        d = OrderedDict()
+        d['code'] = getattr(self, 'code')
+        for field in fields:
+            if hasattr(self, field):
+                d[field] = getattr(self, field)
+        return d
 
 
 class OptionData():
@@ -278,6 +247,16 @@ class OptionData():
         self.time = time
         self.DTE = None
 
+    def to_dict(self, fields: List[str]) -> OrderedDict:
+        d = OrderedDict()
+        d['code'] = getattr(self, 'code')
+        d['expiration'] = getattr(self, 'expiration')
+        d['strike'] = getattr(self, 'strike')
+        d['right'] = getattr(self, 'right')
+        for field in fields:
+            if hasattr(self, field):
+                d[field] = getattr(self, field)
+        return d
 
 class BarDataType(Enum):
     Trades = 'TRADES'
@@ -305,6 +284,18 @@ class BarData():
         self.bar_volume = bar_volume
         self.bar_count = bar_count
 
+    def to_dict(self) -> OrderedDict:
+        d = OrderedDict()
+        d['code'] = self.code
+        d['bar_time'] = self.bar_time
+        d['bar_open'] = self.bar_open
+        d['bar_high'] = self.bar_high
+        d['bar_low'] = self.bar_low
+        d['bar_close'] = self.bar_close
+        d['bar_average'] = self.bar_average
+        d['bar_volume'] = self.bar_volume
+        d['bar_count'] = self.bar_count
+        return d
 
 class OwnershipType(Enum):
     Buyer = 'BUY'
@@ -331,7 +322,18 @@ class PositionData():
         self.quantity = quantity
         self.average_cost = average_cost
         self.trades = []
-
+   
+    def to_dict(self) -> OrderedDict:
+        d = OrderedDict()
+        d['code'] = self.code
+        d['asset_type'] = self.asset_type.value
+        d['expiration'] = self.expiration
+        d['strike'] = self.strike
+        d['right'] = self.right.value
+        d['ownership'] = self.ownership.value
+        d['quantity'] = self.quantity
+        d['average_cost'] = self.average_cost
+        return(d)
 
 class SignalData():
     def __init__(self,

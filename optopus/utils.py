@@ -8,8 +8,8 @@ def pdo(records):
         o = pd.Series(records[0])
     else:
         o = pd.DataFrame(records)
-        o.set_index(['code'], inplace=True)
-        o.sort_index(inplace=True)
+        #o.set_index(['code'], inplace=True)
+        #o.sort_index(inplace=True)
     return o
 
 

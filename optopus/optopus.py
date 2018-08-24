@@ -10,21 +10,22 @@ from typing import List
 from collections import OrderedDict
 from optopus.account import Account, AccountItem
 from optopus.data_manager import DataManager, DataSource
-from optopus.data_objects import UnderlyingAsset, BarDataType
+from optopus.data_objects import Asset, BarDataType
 from optopus.portfolio_manager import PortfolioManager
 from optopus.order_manager import OrderManager
+from optopus.watch_list import WATCH_LIST
+
 
 class Optopus():
     """Class implementing automated trading system"""
 
-    def __init__(self, broker, assets: list) -> None:
+    def __init__(self, broker) -> None:
         self._broker = broker
         self._account = Account()
-        self._universe = assets
-        
+
     def start(self) -> None:
         print('[Initializating managers]')
-        self._data_manager = DataManager()
+        self._data_manager = DataManager(WATCH_LIST)
         self._data_manager.add_data_adapter(self._broker._data_adapter,
                                             DataSource.IB)
         self._portfolio_manager = PortfolioManager(self._data_manager)
@@ -43,14 +44,14 @@ class Optopus():
 
         print('[Updating portfolio]')
         self._data_manager.match_trades_positions()
-        
+
         print('[Adding underlyings]')
-        self._data_manager.create_underlyings(self._universe)
-        self._data_manager.update_underlyings()
+        self._data_manager.initialize_assets()
+        self._data_manager.update_assets()
 
         print('\n[Started]\n')
 
-        #self._beat()
+        # self._beat()
 
     def stop(self) -> None:
         self._broker.disconnect()
@@ -77,20 +78,26 @@ class Optopus():
         # PIECE OF SHIT!!!!
         for t in self._broker._broker.timeRange(datetime.time(0, 0), datetime.datetime(2100, 1, 1, 0), 10):
             print('+')
-        #self._data_manager.update_assets()
-        #self.dummy.calculate_signals()
-        
+        # self._data_manager.update_assets()
+        # self.dummy.calculate_signals()
+
     def positions(self) -> object:
         return self._portfolio_manager.positions()
 
-    def underlyings(self, fields: List[str]) -> List[OrderedDict]:
-        return (self._data_manager.underlyings(fields))
+    def assets(self, fields: List[str]) -> List[OrderedDict]:
+        return self._data_manager.assets(fields)
 
-    def update_underlyings(self):
-        return (self._data_manager.update_underlyings())
-    
-    def option_chain(self, ua: UnderlyingAsset, fields: List[str]) -> List[OrderedDict]:
-        return (self._data_manager.option_chain(ua, fields))
+    def asset_historic(self, code: str) -> List[OrderedDict]:
+        return self._data_manager.asset_historic(code)
 
-    
-        
+    def asset_historic_IV(self, code: str) -> List[OrderedDict]:
+        return self._data_manager.asset_historic_IV(code)
+
+    def assets_matrix(self, field: str) -> dict:
+        return self._data_manager._assets_matrix(field)
+
+    def update_assets(self):
+        return (self._data_manager.update_assets())
+
+    def option_chain(self, code: str, fields: List[str]) -> List[OrderedDict]:
+        return (self._data_manager.option_chain(code, fields))
