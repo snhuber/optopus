@@ -8,9 +8,8 @@ Created on Sat Aug  4 16:30:25 2018
 import datetime
 from typing import List
 from collections import OrderedDict
-from optopus.account import Account, AccountItem
+from optopus.account import Account
 from optopus.data_manager import DataManager, DataSource
-from optopus.data_objects import Asset, BarDataType
 from optopus.portfolio_manager import PortfolioManager
 from optopus.order_manager import OrderManager
 from optopus.watch_list import WATCH_LIST
@@ -21,7 +20,6 @@ class Optopus():
 
     def __init__(self, broker) -> None:
         self._broker = broker
-        self._account = Account()
 
     def start(self) -> None:
         print('[Initializating managers]')
@@ -32,7 +30,7 @@ class Optopus():
         self._order_manager = OrderManager(self._broker)
 
         # Events
-        self._broker.emit_account_item_event = self._change_account_item
+        self._broker.emit_account_item_event = self._data_manager._account_item
         self._broker.emit_position_event = self._data_manager._position
         self._broker.emit_new_order = self._new_order
         self._broker.emit_order_status = self._order_status
@@ -44,6 +42,7 @@ class Optopus():
 
         print('[Updating portfolio]')
         self._data_manager.match_trades_positions()
+        #self._data_manager.update_positions()
 
         print('[Adding underlyings]')
         self._data_manager.initialize_assets()
@@ -67,12 +66,6 @@ class Optopus():
 
     def _order_status(self) -> None:
         pass
-
-    def _change_account_item(self, item: AccountItem) -> None:
-        try:
-            self._account.update_item_value(item)
-        except Exception as e:
-            print('Error updating account item', e)
 
     def _beat(self) -> None:
         # PIECE OF SHIT!!!!
@@ -101,3 +94,6 @@ class Optopus():
 
     def option_chain(self, code: str, fields: List[str]) -> List[OrderedDict]:
         return (self._data_manager.option_chain(code, fields))
+
+    def account(self) -> OrderedDict:
+        return(self._data_manager.account())

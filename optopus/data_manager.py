@@ -5,6 +5,7 @@ from collections import OrderedDict
 import pickle
 from pathlib import Path
 from statistics import stdev
+from optopus.account import Account, AccountItem
 from optopus.data_objects import (DataSource,
                                   PositionData, TradeData, BarData,
                                   Asset, AssetData)
@@ -20,6 +21,7 @@ class DataAdapter:
 
 class DataManager():
     def __init__(self,  watch_list: dict) -> None:
+        self._account = Account()
         self._assets = {code: Asset(code, asset_type)
                         for code, asset_type in watch_list.items()}
         self._catalog = {}
@@ -30,6 +32,12 @@ class DataManager():
                          data_adapter: DataAdapter,
                          data_source: DataSource) -> None:
         self._data_adapters[data_source] = data_adapter
+
+    def _account_item(self, item: AccountItem) -> None:
+        try:
+            self._account.update_item_value(item)
+        except Exception as e:
+            print('Error updating account item', e)
 
     def _position(self, p: PositionData) -> None:
         ownership = p.ownership.value if p.ownership else 'NA'
@@ -173,9 +181,28 @@ class DataManager():
         for k, p in self._data_positions.items():
             if k in positions_bk.keys():
                 if positions_bk[k].trades:
+                    # print (positions_bk[k].trades)
                     p.trades = positions_bk[k].trades
 
         self._write_positions()
+
+    def update_positions(self) -> None:
+        for p in self._data_positions.values():
+            # from trades and underlyings
+            trade = p.trades[-1]
+            underlying = self._assets[p.code]
+            option = self._data_adapters[DataSource.IB].create_options([trade.data_source_id])
+            
+            p.option_price = option.option_price
+            p.trade_option_price = trade.price
+            p.trade_time = trade.time
+            p.underlying_price = option.underlying_price
+            p.commission = trade.commission
+            p.beta = underlying.beta
+            p.delta = option.delta
+            p.algorithm = trade.algorithm
+            p.strategy = trade.strategy
+            p.rol = trade.rol
 
     def positions(self) -> object:
         position_list = list()
@@ -188,3 +215,6 @@ class DataManager():
         for a in self._assets.values():
             d[a.code] = [getattr(bd, field) for bd in a._historical_data]
         return d
+
+    def account(self) -> OrderedDict:
+        return self._account.to_dict()

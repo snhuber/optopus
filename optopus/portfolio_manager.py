@@ -8,3 +8,8 @@ class PortfolioManager():
 
     def positions(self) -> object:
         return self._data_manager.positions()
+
+    # http://www.nishatrades.com/blog/beta-weighted-delta
+    # https://www.dough.com/blog/beta-weighted-portfolio
+    def beta_weighted_delta(self) -> float:
+        pass

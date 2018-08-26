@@ -258,6 +258,7 @@ class OptionData():
                 d[field] = getattr(self, field)
         return d
 
+
 class BarDataType(Enum):
     Trades = 'TRADES'
     IV = 'IMPLIED_VOLATILITY'
@@ -322,7 +323,18 @@ class PositionData():
         self.quantity = quantity
         self.average_cost = average_cost
         self.trades = []
-   
+        
+        self.option_price = None
+        self.trade_option_price = None
+        self.trade_time = None
+        self.underlying_price = None
+        self.commission = None
+        self.beta = None
+        self.delta = None
+        self.algorithm = None
+        self.strategy = None
+        self.rol = None
+
     def to_dict(self) -> OrderedDict:
         d = OrderedDict()
         d['code'] = self.code
@@ -334,6 +346,7 @@ class PositionData():
         d['quantity'] = self.quantity
         d['average_cost'] = self.average_cost
         return(d)
+
 
 class SignalData():
     def __init__(self,
@@ -418,7 +431,8 @@ class TradeData:
                  order_status: OrderStatus = None,
                  time: datetime.datetime = None,
                  price: float = None,
-                 commission: float = None):
+                 commission: float = None,
+                 data_source_id: object = None):
 
         self.code = code
         self.asset_type = asset_type
@@ -435,3 +449,4 @@ class TradeData:
         self.time = time
         self.price = price
         self.commission = commission
+        self.data_source_id = data_source_id

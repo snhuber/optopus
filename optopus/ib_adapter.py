@@ -87,7 +87,8 @@ class IBBrokerAdapter:
 
     def _onAccountValueEvent(self, item: AccountValue) -> None:
         account_item = self._translator.translate_account_value(item)
-        if account_item.tag:  # item translated
+
+        if account_item:  # item translated
             self.emit_account_item_event(account_item)
 
     def _onPositionEvent(self, item: Position) -> PositionData:
@@ -120,8 +121,16 @@ class IBTranslator:
         self._account_translation = {'AccountCode': 'id',
                                      'AvailableFunds': 'funds',
                                      'BuyingPower': 'buying_power',
-                                     'CashBalance': 'cash',
-                                     'DayTradesRemaining': 'max_day_trades'}
+                                     'TotalCashValue': 'cash',
+                                     'DayTradesRemaining': 'max_day_trades',
+                                     'NetLiquidation': 'net_liquidation',
+                                     'InitMarginReq': 'initial_margin',
+                                     'MaintMarginReq': 'maintenance_margin',
+                                     'ExcessLiquidity': 'excess_liquidity',
+                                     'Cushion': 'cushion',
+                                     'GrossPositionValue': 'gross_position_value',
+                                     'EquityWithLoanValue': 'equity_with_loan',
+                                     'SMA': 'SMA'}
         self._sectype_translation = {'STK': AssetType.Stock,
                                      'OPT': AssetType.Option,
                                      'FUT': AssetType.Future,
@@ -135,8 +144,8 @@ class IBTranslator:
                                      'IOPT': AssetType.Warrant}
 
         self._right_translation = {'C': OptionRight.Call,
-                                  'P': OptionRight.Put}
-        
+                                   'P': OptionRight.Put}
+
         self._order_status_translation = {'PendingSubmit': OrderStatus.PendingSubmit,
                                           'PendingCancel': OrderStatus.PendingCancel,
                                           'PreSubmitted': OrderStatus.PreSubmitted,
@@ -144,7 +153,7 @@ class IBTranslator:
                                           'Cancelled': OrderStatus.Cancelled,
                                           'Filled': OrderStatus.Filled,
                                           'Inactive': OrderStatus.Inactive}
-        
+
         self._ownership_translation = {'BUY': OwnershipType.Buyer,
                                        'SELL': OwnershipType.Seller}
 
@@ -154,13 +163,16 @@ class IBTranslator:
 
         opt_tag = self._translate_account_tag(item.tag)
 
-        if item.currency and is_number(item.value):
-            opt_money = self._translate_value_currency(item.value,
-                                                       item.currency)
-        else:  # for no money value.
-            opt_value = item.value
-
-        return AccountItem(item.account, opt_tag, opt_value, opt_money)
+        if opt_tag:
+            if item.currency and is_number(item.value):
+                if not (item.currency == 'BASE'):
+                    opt_money = self._translate_value_currency(item.value,
+                                                               item.currency)
+            else:
+                opt_value = item.value
+            return AccountItem(item.account, opt_tag, opt_value, opt_money)
+        else:
+            return None
 
     def _translate_account_tag(self, ib_tag: str) -> str:
             tag = None
@@ -173,7 +185,7 @@ class IBTranslator:
                                   ib_currency: str) -> Money:
         m = None
 
-        if ib_currency == CURRENCY:
+        if ib_currency == CURRENCY.value:
             m = Money(ib_value, CURRENCY)
 
         return m
@@ -181,7 +193,7 @@ class IBTranslator:
     def translate_position(self, item: Position) -> PositionData:
         code = item.contract.symbol
         asset_type = self._sectype_translation[item.contract.secType]
-        
+
         if item.position > 0:
             ownership = OwnershipType.Buyer
         elif item.position < 0:
@@ -211,12 +223,11 @@ class IBTranslator:
                                 average_cost=item.avgCost)
         return position
 
-
     def translate_trade(self, item: Trade) -> TradeData:
         code = item.contract.symbol
         asset_type = self._sectype_translation[item.contract.secType]
         ownership = self._ownership_translation[item.order.action]
-        
+
         expiration = item.contract.lastTradeDateOrContractMonth
         if expiration:
             expiration = parse_ib_date(expiration)
@@ -248,6 +259,8 @@ class IBTranslator:
             commission = nan
         time = datetime.datetime.now()
 
+        data_source_id = item.contract
+
         trade = TradeData(code=code,
                           asset_type=asset_type,
                           expiration=expiration,
@@ -262,9 +275,24 @@ class IBTranslator:
                           order_status=order_status,
                           time=time,
                           price=price,
-                          commission=commission)
+                          commission=commission,
+                          data_source_id=data_source_id)
         return trade
 
+    def translate_bars(self, code: str, ibbars: list) -> list:
+        bars = []
+        for ibb in ibbars:
+            b = BarData(code=code,
+                        bar_time=ibb.date,
+                        bar_open=ibb.open,
+                        bar_high=ibb.high,
+                        bar_low=ibb.low,
+                        bar_close=ibb.close,
+                        bar_average=ibb.average,
+                        bar_volume=ibb.volume,
+                        bar_count=ibb.barCount)
+            bars.append(b)
+        return bars
 
 class IBDataAdapter(DataAdapter):
     def __init__(self, broker: IB, translator: IBTranslator) -> None:
@@ -318,7 +346,7 @@ class IBDataAdapter(DataAdapter):
                                               whatToShow='TRADES',
                                               useRTH=True,
                                               formatDate=1)
-        return self._translate_bars(a.code, bars)
+        return self._translator.translate_bars(a.code, bars)
 
     def update_historical_IV(self, a: Asset) -> None:
         bars = self._broker.reqHistoricalData(a.data_source_id,
@@ -328,22 +356,8 @@ class IBDataAdapter(DataAdapter):
                                               whatToShow='OPTION_IMPLIED_VOLATILITY',
                                               useRTH=True,
                                               formatDate=1)
-        return self._translate_bars(a.code, bars)
+        return self._translator.translate_bars(a.code, bars)
 
-    def _translate_bars(self, code: str, ibbars: list) -> list:
-        bars = []
-        for ibb in ibbars:
-            b = BarData(code=code,
-                        bar_time=ibb.date,
-                        bar_open=ibb.open,
-                        bar_high=ibb.high,
-                        bar_low=ibb.low,
-                        bar_close=ibb.close,
-                        bar_average=ibb.average,
-                        bar_volume=ibb.volume,
-                        bar_count=ibb.barCount)
-            bars.append(b)
-        return bars
 
     def create_optionchain(self, a: Asset) -> List[OptionData]:
         chains = self._broker.reqSecDefOptParams(a.data_source_id.symbol,
@@ -366,7 +380,7 @@ class IBDataAdapter(DataAdapter):
             max_strike_price = underlying_price + width * 1.5
             strikes = sorted(strike for strike in chain.strikes
                        if min_strike_price < strike < max_strike_price)
-            rights=['P','C']
+            rights = ['P', 'C']
 
             # Create the options contracts
             contracts = [Option(a.data_source_id.symbol,
@@ -390,7 +404,7 @@ class IBDataAdapter(DataAdapter):
             for q in chunks(q_contracts, 50):
                 tickers += self._broker.reqTickers(*q)
                 self._broker.sleep(1)
-                
+
             return self.create_options(q_contracts)
 
     def create_options(self, q_contracts: List[Contract]) -> List[OptionData]:

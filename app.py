@@ -13,22 +13,23 @@ from optopus.data_manager import DataSource
 
 host = '127.0.0.1'
 # port = 4002  # gateway
-port = port = 7497  # TWS
+port = 7497  # TWS PAPER TRADING
+port = 7496 # TWS LIVE TRADING
 client = 10
 
 ib = IB()
 opt = Optopus(IBBrokerAdapter(ib, host, port, client))
 opt.start()
 
+#print(opt.account())
+#print(pdo(opt.assets(['market_price', 'IV_h', 'IV_rank_h',
+#                      'IV_percentile_h', 'volume_h', 'volume',
+#                      'bid', 'ask', 'stdev', 'beta'])))
 
-print(pdo(opt.assets(['market_price', 'IV_h', 'IV_rank_h',
-                      'IV_percentile_h', 'volume_h', 'volume',
-                      'bid', 'ask', 'stdev', 'beta'])))
+#print(pdo(opt.option_chain('EEM', ['option_price', 'delta', 'DTE'])))
 
-print(pdo(opt.option_chain('EEM', ['option_price', 'delta', 'DTE'])))
-
-print(pdo(opt.asset_historic('EEM')))
-print(pdo(opt.asset_historic_IV('EEM')))
-print(opt.assets_matrix('bar_close'))
+#print(pdo(opt.asset_historic('EEM')))
+#print(pdo(opt.asset_historic_IV('EEM')))
+#print(opt.assets_matrix('bar_close'))
 
 opt.stop()
