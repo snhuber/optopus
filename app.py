@@ -31,5 +31,6 @@ opt.start()
 #print(pdo(opt.asset_historic('EEM')))
 #print(pdo(opt.asset_historic_IV('EEM')))
 #print(opt.assets_matrix('bar_close'))
+#print(opt.assets(['IV_h', 'IV_rank_h']))
 
 opt.stop()

@@ -154,8 +154,10 @@ class AssetData():
         self.IV_rank_h = None
         self.IV_percentile_h = None
         self.volume_h = None
-        self.stdev = None
+        #self.stdev = None
         self.beta = None
+        self.one_month_return = None
+        self.correlation = None
 
     @property
     def midpoint(self) -> float:

@@ -11,7 +11,7 @@ from optopus.data_objects import (DataSource,
                                   Asset, AssetData)
 from optopus.settings import HISTORICAL_YEARS, DATA_DIR, STDEV_DAYS
 from optopus.utils import is_nan, format_ib_date
-from optopus.computation import calc_beta
+from optopus.computation import calc_beta, calc_correlation
 
 
 # I dond't like this class
@@ -73,7 +73,7 @@ class DataManager():
 
     def initialize_assets(self) -> None:
         # All the underlyings retrieve the data from the same data_source
-        print('- Initializing underlyings: ', end='')
+        print('- Initializing underlyings:\t', end='')
         data_source_ids = self._data_adapters[DataSource.IB].initialize_assets(self._assets.values())
         for i in data_source_ids:
                 self._assets[i].data_source_id = data_source_ids[i]
@@ -86,13 +86,13 @@ class DataManager():
         return values_list
 
     def update_assets(self) -> None:
-        print('\n- Retriving current data: ', end='')
+        print('\n- Retriving current data:\t', end='')
         self._update_current_assets()
-        print('\n- Retriving historical data: ', end='')
+        print('\n- Retriving historical data:\t', end='')
         self._update_historical_assets()
-        print('\n- Retriving historical IV data: ', end='')
+        print('\n- Retriving historical IV data:\t', end='')
         self._update_historical_IV_assets()
-        print('\n- Computing fields: ', end='')
+        print('\n- Computing fields:\t\t', end='')
         self._assets_computation()
 
     def _update_current_assets(self) -> None:
@@ -118,31 +118,35 @@ class DataManager():
 
     def _assets_computation(self):
         for a in self._assets.values(): 
-            a.current.stdev = stdev([bd.bar_close for bd in a._historical_data[:(-1 * STDEV_DAYS)]])
+            #a.current.stdev = stdev([bd.bar_close for bd in a._historical_data[:(-1 * STDEV_DAYS)]])
             # last historical value
             a.current.volume_h = a._historical_data[-1].bar_volume
             a.current.IV_h = a._historical_IV_data[-1].bar_close
             a.current.IV_rank_h = self._IV_rank(a, a.current.IV_h)
             a.current.IV_percentile_h = self._IV_percentile(a, a.current.IV_h)
+            a.current.one_month_return = (a._historical_data[-1].bar_close - a._historical_data[-22].bar_close) / a._historical_data[-22].bar_close
             print('.', end='')
 
-        self._calculate_beta()
+            close_matrix = self._assets_matrix('bar_close')
+            # Calculate beta
+            for code, beta in calc_beta(close_matrix).items():
+                self._assets[code].current.beta = beta
+
+            # Calculate correlation
+            for code, correlation in calc_correlation(close_matrix).items():
+                self._assets[code].current.correlation = correlation
 
     def _IV_rank(self, ad: AssetData, IV_value: float) -> float:
             min_IV_values = [b.bar_low for b in ad.historical_IV]
             max_IV_values = [b.bar_high for b in ad.historical_IV]
             IV_min = min(min_IV_values)
             IV_max = max(max_IV_values)
-            IV_rank = (IV_value - IV_min) / (IV_max - IV_min) * 100
+            IV_rank = (IV_value - IV_min) / (IV_max - IV_min)
             return IV_rank
-
-    def _calculate_beta(self) -> None:
-        for code, beta in calc_beta(self._assets_matrix('bar_close')).items():
-            self._assets[code].current.beta = beta
 
     def _IV_percentile(self, ad: AssetData, IV_value: float) -> float:
             IV_values = [b.bar_low for b in ad.historical_IV if b.bar_low < IV_value]
-            return len(IV_values) / (HISTORICAL_YEARS * 252) * 100
+            return len(IV_values) / (HISTORICAL_YEARS * 252)
 
     def _create_optionchain(self, a: Asset) -> None:
         a._option_chain = self._data_adapters[DataSource.IB].create_optionchain(a)
@@ -214,6 +218,7 @@ class DataManager():
         d = {}
         for a in self._assets.values():
             d[a.code] = [getattr(bd, field) for bd in a._historical_data]
+        #print([len(i) for i in d.values()])
         return d
 
     def account(self) -> OrderedDict:
