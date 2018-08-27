@@ -325,7 +325,7 @@ class PositionData():
         self.quantity = quantity
         self.average_cost = average_cost
         self.trades = []
-        
+
         self.option_price = None
         self.trade_option_price = None
         self.trade_time = None

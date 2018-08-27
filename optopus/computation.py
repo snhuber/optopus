@@ -6,7 +6,7 @@ from optopus.settings import MARKET_BENCHMARK
 # https://conceptosclaros.com/que-es-la-covarianza-y-como-se-calcula-estadistica-descriptiva/
 # http://gouthamanbalaraman.com/blog/calculating-stock-beta.html
 # https://www.quora.com/What-is-the-difference-between-beta-and-correlation-coefficient
-
+# https://www.investopedia.com/articles/investing/102115/what-beta-and-how-calculate-beta-excel.asp
 
 def calc_beta(values: dict) -> dict:
     # calculate daily returns

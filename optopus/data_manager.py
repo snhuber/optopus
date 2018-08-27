@@ -8,7 +8,7 @@ from statistics import stdev
 from optopus.account import Account, AccountItem
 from optopus.data_objects import (DataSource,
                                   PositionData, TradeData, BarData,
-                                  Asset, AssetData)
+                                  Asset, AssetData, OptionData)
 from optopus.settings import HISTORICAL_YEARS, DATA_DIR, STDEV_DAYS
 from optopus.utils import is_nan, format_ib_date
 from optopus.computation import calc_beta, calc_correlation
@@ -62,6 +62,7 @@ class DataManager():
         key = trade.code + '_' + trade.asset_type.value + '_' \
             + expiration + '_' + strike + '_' + right + '_' + ownership
 
+        print(trade)
         pos = self._data_positions[key]
         pos.trades.append(trade)
         self._write_positions()
@@ -118,7 +119,7 @@ class DataManager():
 
     def _assets_computation(self):
         for a in self._assets.values(): 
-            #a.current.stdev = stdev([bd.bar_close for bd in a._historical_data[:(-1 * STDEV_DAYS)]])
+            a.current.stdev = stdev([bd.bar_close for bd in a._historical_data[:(-1 * STDEV_DAYS)]])
             # last historical value
             a.current.volume_h = a._historical_data[-1].bar_volume
             a.current.IV_h = a._historical_IV_data[-1].bar_close
@@ -161,6 +162,10 @@ class DataManager():
             values_list.append(od.to_dict(fields))
         return values_list
 
+    def update_option(self, data_source_id: object) -> List[OptionData]:
+        return self._data_adapters[DataSource.IB].create_options(qc)
+        
+
     def _option_chain_computation(self, a: Asset) -> None:
         for od in a._option_chain:
             od.DTE = (od.expiration - datetime.datetime.now().date()).days
@@ -179,16 +184,20 @@ class DataManager():
 
     def match_trades_positions(self) -> None:
         file_name = Path.cwd() / DATA_DIR / "positions.pckl"
-        with open(file_name, 'rb') as file_handler:
+        try:
+            with open(file_name, 'rb') as file_handler:
                 positions_bk = pickle.load(file_handler)
+                for k, p in self._data_positions.items():
+                    if k in positions_bk.keys():
+                        if positions_bk[k].trades:
+                            print (positions_bk[k].trades)
+                            p.trades = positions_bk[k].trades
 
-        for k, p in self._data_positions.items():
-            if k in positions_bk.keys():
-                if positions_bk[k].trades:
-                    # print (positions_bk[k].trades)
-                    p.trades = positions_bk[k].trades
+                self._write_positions()
+        except FileNotFoundError as e:
+            print('positions.pckl not found')
 
-        self._write_positions()
+        
 
     def update_positions(self) -> None:
         for p in self._data_positions.values():

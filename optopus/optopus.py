@@ -42,11 +42,13 @@ class Optopus():
 
         print('[Updating portfolio]')
         self._data_manager.match_trades_positions()
-        #self._data_manager.update_positions()
+        self._portfolio_manager.update_positions()
 
         print('[Adding underlyings]')
         self._data_manager.initialize_assets()
         self._data_manager.update_assets()
+
+
 
         print('\n[Started]\n')
 

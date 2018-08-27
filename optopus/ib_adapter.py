@@ -71,20 +71,30 @@ class IBBrokerAdapter:
 
     def place_order(self, orders) -> None:
         for o in orders:
-            if o.asset.asset_type == AssetType.Option:
-                contract = self._qualify_option(o.asset,
-                                                o.strike,
-                                                o.right,
-                                                o.expiration)
-                action = 'BUY' if o.action == OrderAction.Buy else 'SELL'
-                if o.order_type == OrderType.Limit:
-                    order = LimitOrder(action=action,
-                                       totalQuantity=o.quantity,
-                                       lmtPrice=o.price,
-                                       orderRef=o.reference,
-                                       tif='DAY')
-                    trade = self._broker.placeOrder(contract, order)
+            [contract] = self._qualify_option(o.asset,
+                                            o.strike,
+                                            o.right,
+                                            o.expiration)
 
+            action = 'BUY' if o.action == OrderAction.Buy else 'SELL'
+            if o.order_type == OrderType.Limit:
+                order = LimitOrder(action=action,
+                                   totalQuantity=o.quantity,
+                                   lmtPrice=o.price,
+                                   orderRef=o.reference,
+                                   tif='DAY')
+                trade = self._broker.placeOrder(contract, order)
+
+    def _qualify_option(self,
+                      a: Asset,
+                      strike: float,
+                      right: OptionRight, 
+                      expiration: datetime.date) -> Contract:
+       c = Option(a.code, format_ib_date(expiration), strike, right.value, 'SMART')
+       c = self._broker.qualifyContracts(c)
+       return c
+    
+    
     def _onAccountValueEvent(self, item: AccountValue) -> None:
         account_item = self._translator.translate_account_value(item)
 
@@ -97,6 +107,7 @@ class IBBrokerAdapter:
             self.emit_position_event(position)
 
     def _onCommissionReportEvent(self, trade: Trade, fill: Fill, report: CommissionReport):
+        print('ON COMMISSION REPORT EVENT')
         h = "\n[{}]\n".format(datetime.datetime.now())
         t = h + str(trade)
         file_name = Path.cwd() / "data" / "execution.log"
