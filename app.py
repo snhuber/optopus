@@ -40,7 +40,7 @@ u = Asset(symbol, AssetType.Stock)
 s = SignalData(asset=u, 
                action=OrderAction.Sell, 
                quantity=1, 
-               price=1.06, 
+               price=0.9, 
                expiration=datetime.datetime.strptime('21092018', "%d%m%Y").date(),
                strike=283,
                right=OptionRight.Put,
@@ -48,6 +48,11 @@ s = SignalData(asset=u,
                strategy=StrategyType.SellNakedPut,
                rol='no_rol')  
 
-opt.process([s])
+#opt.process([s])
+ib.sleep(3)
+opt.update_positions()
+print(opt.positions())
+
+print('\nBeta weighted delta', opt.portfolio()['BWDelta'])
 
 opt.stop()

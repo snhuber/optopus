@@ -1,34 +1,28 @@
 # -*- coding: utf-8 -*-
+from optopus.data_objects import DataSource, OwnershipType
 from optopus.data_manager import DataManager
-
+from optopus.settings import MARKET_BENCHMARK
+from collections import OrderedDict
 
 class PortfolioManager():
     def __init__(self, data_manager: DataManager) -> None:
         self._data_manager = data_manager
 
-    def positions(self) -> object:
-        return self._data_manager.positions()
-
     # http://www.nishatrades.com/blog/beta-weighted-delta
     # https://www.dough.com/blog/beta-weighted-portfolio
-    def beta_weighted_delta(self) -> float:
-        pass
-    
-    def update_positions(self):
+    def _beta_weighted_delta(self) -> float:
+        total = 0
+        benchmark_price = self._data_manager._assets[MARKET_BENCHMARK].current.market_price
         for p in self._data_manager._data_positions.values():
-            print(p.trades)
-            t = p.trades[-1]
-            o = self._data_manager.update_option(t.data_source_id)
-            p.option_price = o.option_price
-            p.trade_time = t.time
-            p.underlying_price = o.underlying_price
-            p.commission = o.commission
-            p.beta = o.beta
-            p.delta = o.delta
-            p.algorithm = t.algorithm
-            p.strategy = t.strategy
-            p.rol = t.rol
-            
-            
-            
-    
+            ownership = 1 if p.ownership == OwnershipType.Buyer else -1
+            BWDelta = (p.underlying_price / benchmark_price) * p.beta * p.delta * p.quantity * ownership
+            total += BWDelta
+        return total
+
+    def update_positions(self):
+        self._data_manager.update_positions()
+
+    def to_dict(self) -> OrderedDict:
+        d = OrderedDict()
+        d['BWDelta'] = self._beta_weighted_delta()
+        return d

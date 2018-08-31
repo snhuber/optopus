@@ -8,7 +8,8 @@ from statistics import stdev
 from optopus.account import Account, AccountItem
 from optopus.data_objects import (DataSource,
                                   PositionData, TradeData, BarData,
-                                  Asset, AssetData, OptionData)
+                                  Asset, AssetData, OptionData,
+                                  AssetType, OwnershipType, OptionRight)
 from optopus.settings import HISTORICAL_YEARS, DATA_DIR, STDEV_DAYS
 from optopus.utils import is_nan, format_ib_date
 from optopus.computation import calc_beta, calc_correlation
@@ -24,7 +25,7 @@ class DataManager():
         self._account = Account()
         self._assets = {code: Asset(code, asset_type)
                         for code, asset_type in watch_list.items()}
-        self._catalog = {}
+        #self._catalog = {}
         self._data_adapters = {}
         self._data_positions = {}
 
@@ -39,33 +40,47 @@ class DataManager():
         except Exception as e:
             print('Error updating account item', e)
 
-    def _position(self, p: PositionData) -> None:
-        ownership = p.ownership.value if p.ownership else 'NA'
-        expiration = format_ib_date(p.expiration) if p.expiration else 'NA'
-        strike = str(p.strike) if not is_nan(p.strike) else 'NA'
-        right = p.right.value if p.right else 'NA'
+    def _position(self, position: PositionData) -> None:
+        key = self._position_key(position.code,
+                                 position.asset_type,
+                                 position.expiration,
+                                 position.strike,
+                                 position.right,
+                                 position.ownership)
 
-        key = p.code + '_' + p.asset_type.value + '_' \
-            + expiration + '_' + strike + '_' + right + '_' + ownership
-
-        self._data_positions[key] = p
+        self._data_positions[key] = position
 
     def _commission_report(self, trade: TradeData) -> None:
         self._add_trade(trade)
 
     def _add_trade(self, trade: TradeData) -> None:
-        ownership = trade.ownership.value if trade.ownership else 'NA'
-        expiration = format_ib_date(trade.expiration) if trade.expiration else 'NA'
-        strike = str(trade.strike) if not is_nan(trade.strike) else 'NA'
-        right = trade.right.value if trade.right else 'NA'
-
-        key = trade.code + '_' + trade.asset_type.value + '_' \
-            + expiration + '_' + strike + '_' + right + '_' + ownership
-
-        print(trade)
+        key = self._position_key(trade.code,
+                                 trade.asset_type,
+                                 trade.expiration,
+                                 trade.strike,
+                                 trade.right,
+                                 trade.ownership)
         pos = self._data_positions[key]
         pos.trades.append(trade)
         self._write_positions()
+
+    def _position_key(self,
+                      code: str,
+                      asset_type: AssetType,
+                      expiration: datetime.date,
+                      strike: float,
+                      right: OptionRight,
+                      ownership: OwnershipType):
+
+        ownership = ownership.value if ownership else 'NA'
+        expiration = format_ib_date(expiration) if expiration else 'NA'
+        strike = str(strike) if not is_nan(strike) else 'NA'
+        right = right.value if right else 'NA'
+
+        key = code + '_' + asset_type.value + '_' \
+            + expiration + '_' + strike + '_' + right + '_' + ownership
+
+        return key
 
     def _write_positions(self) -> None:
         file_name = Path.cwd() / DATA_DIR / "positions.pckl"
@@ -149,10 +164,10 @@ class DataManager():
             IV_values = [b.bar_low for b in ad.historical_IV if b.bar_low < IV_value]
             return len(IV_values) / (HISTORICAL_YEARS * 252)
 
-    def _create_optionchain(self, a: Asset) -> None:
-        a._option_chain = self._data_adapters[DataSource.IB].create_optionchain(a)
-        self._option_chain_computation(a)
-        print('.', end='')
+    #def _create_optionchain(self, a: Asset) -> None:
+    #    a._option_chain = self._data_adapters[DataSource.IB].create_optionchain(a)
+    #    self._option_chain_computation(a)
+    #    print('.', end='')
 
     def option_chain(self, code: str, fields: List[str]) -> List[OrderedDict]:
         a = self._assets[code]
@@ -162,10 +177,9 @@ class DataManager():
             values_list.append(od.to_dict(fields))
         return values_list
 
-    def update_option(self, data_source_id: object) -> List[OptionData]:
-        return self._data_adapters[DataSource.IB].create_options(qc)
+    #def update_option(self, q_contracts: List[object]) -> List[OptionData]:
+    #    return self._data_adapters[DataSource.IB].create_options(q_contracts)
         
-
     def _option_chain_computation(self, a: Asset) -> None:
         for od in a._option_chain:
             od.DTE = (od.expiration - datetime.datetime.now().date()).days
@@ -190,32 +204,34 @@ class DataManager():
                 for k, p in self._data_positions.items():
                     if k in positions_bk.keys():
                         if positions_bk[k].trades:
-                            print (positions_bk[k].trades)
                             p.trades = positions_bk[k].trades
 
                 self._write_positions()
         except FileNotFoundError as e:
             print('positions.pckl not found')
 
+    def update_positions(self):
+        trades = [p.trades[-1] for p in self._data_positions.values() if p.trades]
         
+        for trade in trades:
+            [option] = self._data_adapters[DataSource.IB].create_options([trade.data_source_id])
+            key = self._position_key(option.code,
+                                     option.asset_type,
+                                     option.expiration,
+                                     option.strike,
+                                     option.right,
+                                     trade.ownership)
 
-    def update_positions(self) -> None:
-        for p in self._data_positions.values():
-            # from trades and underlyings
-            trade = p.trades[-1]
-            underlying = self._assets[p.code]
-            option = self._data_adapters[DataSource.IB].create_options([trade.data_source_id])
-            
-            p.option_price = option.option_price
-            p.trade_option_price = trade.price
-            p.trade_time = trade.time
-            p.underlying_price = option.underlying_price
-            p.commission = trade.commission
-            p.beta = underlying.beta
-            p.delta = option.delta
-            p.algorithm = trade.algorithm
-            p.strategy = trade.strategy
-            p.rol = trade.rol
+            position = self._data_positions[key]
+            position.option_price = option.option_price
+            position.underlying_price = option.underlying_price
+            position.delta = option.delta
+            position.trade_price = trade.price
+            position.trade_time = trade.time
+            position.algorithm = trade.algorithm
+            position.strategy = trade.strategy
+            position.rol = trade.rol
+            position.beta = self._assets[option.code].current.beta
 
     def positions(self) -> object:
         position_list = list()

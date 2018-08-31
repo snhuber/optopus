@@ -40,15 +40,13 @@ class Optopus():
         self._broker.connect()
         self._broker.sleep(1)
 
-        print('[Updating portfolio]')
-        self._data_manager.match_trades_positions()
-        self._portfolio_manager.update_positions()
-
         print('[Adding underlyings]')
         self._data_manager.initialize_assets()
         self._data_manager.update_assets()
 
-
+        print('\n[Updating portfolio]')
+        self._data_manager.match_trades_positions()
+        self._portfolio_manager.update_positions()
 
         print('\n[Started]\n')
 
@@ -77,7 +75,7 @@ class Optopus():
         # self.dummy.calculate_signals()
 
     def positions(self) -> object:
-        return self._portfolio_manager.positions()
+        return self._data_manager.positions()
 
     def assets(self, fields: List[str]) -> List[OrderedDict]:
         return self._data_manager.assets(fields)
@@ -93,9 +91,15 @@ class Optopus():
 
     def update_assets(self):
         return (self._data_manager.update_assets())
+    
+    def update_positions(self):
+        return(self._data_manager.update_positions())
 
     def option_chain(self, code: str, fields: List[str]) -> List[OrderedDict]:
         return (self._data_manager.option_chain(code, fields))
 
     def account(self) -> OrderedDict:
         return(self._data_manager.account())
+        
+    def portfolio(self) -> OrderedDict:
+        return(self._portfolio_manager.to_dict())

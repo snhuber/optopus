@@ -107,7 +107,6 @@ class IBBrokerAdapter:
             self.emit_position_event(position)
 
     def _onCommissionReportEvent(self, trade: Trade, fill: Fill, report: CommissionReport):
-        print('ON COMMISSION REPORT EVENT')
         h = "\n[{}]\n".format(datetime.datetime.now())
         t = h + str(trade)
         file_name = Path.cwd() / "data" / "execution.log"
@@ -115,7 +114,7 @@ class IBBrokerAdapter:
             f.write(t)
         trade_data = self._translator.translate_trade(trade)
 
-        self._broker.sleep(1)  # wait for new position event
+        #self._broker.sleep(1)  # wait for new position event
 
         self.emit_commission_report(trade_data)
 
@@ -239,6 +238,8 @@ class IBTranslator:
         asset_type = self._sectype_translation[item.contract.secType]
         ownership = self._ownership_translation[item.order.action]
 
+        print('ON TRANSLATE TRADE', ownership, item.order.action)
+
         expiration = item.contract.lastTradeDateOrContractMonth
         if expiration:
             expiration = parse_ib_date(expiration)
@@ -264,12 +265,7 @@ class IBTranslator:
         order_status = self._order_status_translation[item.orderStatus.status]
         price = item.orderStatus.avgFillPrice
         quantity = item.orderStatus.filled
-        if hasattr(item, 'commissionReport'):
-            commission = item.commissionReport.commission
-        else:
-            commission = nan
         time = datetime.datetime.now()
-
         data_source_id = item.contract
 
         trade = TradeData(code=code,
@@ -286,7 +282,6 @@ class IBTranslator:
                           order_status=order_status,
                           time=time,
                           price=price,
-                          commission=commission,
                           data_source_id=data_source_id)
         return trade
 
@@ -455,7 +450,7 @@ class IBDataAdapter(DataAdapter):
                         code=t.contract.symbol,
                         expiration=parse_ib_date(t.contract.lastTradeDateOrContractMonth),
                         strike=t.contract.strike,
-                        right=OptionRight.Call.value if t.contract.right =='C' else OptionRight.Put.value,
+                        right=OptionRight.Call if t.contract.right =='C' else OptionRight.Put,
                         high=t.high,
                         low=t.low,
                         close=t.close,

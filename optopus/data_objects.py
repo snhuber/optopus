@@ -300,6 +300,7 @@ class BarData():
         d['bar_count'] = self.bar_count
         return d
 
+
 class OwnershipType(Enum):
     Buyer = 'BUY'
     Seller = 'SELL'
@@ -327,10 +328,9 @@ class PositionData():
         self.trades = []
 
         self.option_price = None
-        self.trade_option_price = None
+        self.trade_price = None
         self.trade_time = None
         self.underlying_price = None
-        self.commission = None
         self.beta = None
         self.delta = None
         self.algorithm = None
@@ -347,6 +347,15 @@ class PositionData():
         d['ownership'] = self.ownership.value
         d['quantity'] = self.quantity
         d['average_cost'] = self.average_cost
+        d['option_price'] = self.option_price
+        d['trade_price'] = self.trade_price
+        d['trade_time'] = self.trade_time
+        d['underlying_price'] = self.underlying_price
+        d['beta'] = self.beta
+        d['delta'] = self.delta
+        d['algorithm'] = self.algorithm
+        d['strategy'] = self.strategy
+        d['rol'] = self.rol
         return(d)
 
 
@@ -433,7 +442,6 @@ class TradeData:
                  order_status: OrderStatus = None,
                  time: datetime.datetime = None,
                  price: float = None,
-                 commission: float = None,
                  data_source_id: object = None):
 
         self.code = code
@@ -450,5 +458,4 @@ class TradeData:
         self.order_status = order_status
         self.time = time
         self.price = price
-        self.commission = commission
         self.data_source_id = data_source_id
