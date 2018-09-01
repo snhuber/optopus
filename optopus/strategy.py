@@ -1,52 +1,54 @@
-import datetime
-from optopus.money import Money
-from optopus.order_manager import OrderManager
-from optopus.data_manager import DataManager
-from optopus.data_objects import DataSource, IndexAsset
-from optopus.signal import Signal, RightType, ActionType
-from optopus.data_objects import AssetType
-from optopus.settings import CURRENCY
+from collections import OrderedDict
+from typing import List
+from optopus.data_objects import StrategyType, PositionData
 
+
+
+ 
 
 class Strategy():
-    def __init__(self, data_manager: DataManager):
-        self._data_manager = data_manager
+    def __init__(self, strategy_type: StrategyType, strategy_id: str):
+        self.strategy_type = strategy_type
+        self.strategy_id = strategy_id
+        self.positions = []
+        self.n_position = None
+        self.max_profit = None
+        self.max_loss = None
+        self.breakeven = None
+        self.pop = None # Probability of profit / success
 
-    def calculate_signals() -> None:
-        raise(NotImplementedError)
+    def add_position(self, position: PositionData):
+        self.positions.append(position)
+    def to_dict(self):
+        d = OrderedDict()
+        for attr, value in vars(self).items():
+            try: 
+                iter(value)
+            except TypeError:
+                d[attr] = value
+        return d
 
-    def manage_positions() -> None:
-        raise(NotImplementedError)
 
 
-class DummyStrategy(Strategy):
-    def __init__(self, data_manager: DataManager) -> None:
-        super().__init__(data_manager)
-        self.SPX = AssetIndex('SPX',
-                                   DataSource.IB)
-        self.SPX_OPT = AssetOption(self.SPX)
-    def calculate_signals2():
-        s = Signal('DummyStrategy')
-        s.add_item('SPX',
-                    AssetType.Option,
-                    datetime.datetime.strptime('20/12/2018','%d/%m/%Y').date(),
-                    2700,
-                    RightType.Call,
-                    ActionType.Buy,
-                    1,
-                    Money('170', CURRENCY))
+class SellNakedPut():
+    def __init__(self, strategy_id: str):
+        super.__init__(StrategyType.SellNakedPut, strategy_id)
+        self.n_positions = 1
 
-    def calculate_signals(self):
-        f = ['high', 'low', 'close', 'bid', 'bid_size', 'ask', 'ask_size',
-             'last', 'last_size', 'time', 'midpoint', 'market_price']
-        d = self._data_manager.current(self.SPX, f)
-        if d:
-            print(d)
+    def update(self):
+        position = self.positios[0]
+        self.max_profit = position.trade_price * 100
+        self.breakeven = position.strike - position.trade_price
+        self.max_loss = self.breakeven * 100
+        self.pop = 1 + position.delta  # 1 - (-1*delta)
+
+
+class StrategyFactory():
+    @staticmethod
+    def create_strategy(self,
+                        strategy_type: StrategyType,
+                        strategy_id: str) -> Strategy:
+        if strategy_type == StrategyType.SellNakedPut:
+            return (SellNakedPut(strategy_id))
         else:
-            print('dl is empty')
-        #print('SPX OPTION!!!!!')
-        #self._data_manager.ticket(self.SPX_OPT)
-        #dl = self._data_manager.data(self.SPX_OPT)
-        #if dl:
-        #    print(dl._data)
-        #    print(dl.values)
+            print('unknow strategy type')

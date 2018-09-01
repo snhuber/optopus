@@ -23,9 +23,8 @@ class Optopus():
 
     def start(self) -> None:
         print('[Initializating managers]')
-        self._data_manager = DataManager(WATCH_LIST)
-        self._data_manager.add_data_adapter(self._broker._data_adapter,
-                                            DataSource.IB)
+        self._data_manager = DataManager(self._broker._data_adapter,
+                                         WATCH_LIST)
         self._portfolio_manager = PortfolioManager(self._data_manager)
         self._order_manager = OrderManager(self._broker)
 

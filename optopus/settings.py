@@ -16,3 +16,7 @@ EXPIRATIONS = [datetime.date(2018, 9, 21),
                datetime.date(2018, 11, 16),
                datetime.date(2018, 12, 21)]
 MARKET_BENCHMARK = 'SPY'
+STDEV_PERIOD = 22
+BETA_PERIOD = 252
+CORRELATION_PERIOD = 252
+

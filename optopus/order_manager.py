@@ -11,6 +11,8 @@ class OrderManager():
         for s in signals:
             reference = s.algorithm + '-' + s.strategy.value + '-' \
                         + s.rol
+          
+            
             o = OrderData(asset=s.asset,
                       action=s.action,
                       quantity=s.quantity,

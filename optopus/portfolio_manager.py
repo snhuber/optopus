@@ -13,9 +13,10 @@ class PortfolioManager():
     def _beta_weighted_delta(self) -> float:
         total = 0
         benchmark_price = self._data_manager._assets[MARKET_BENCHMARK].current.market_price
-        for p in self._data_manager._data_positions.values():
+        for p in self._data_manager._positions.values():
+            underlying_price = self._data_manager._assets[p.code].current.market_price
             ownership = 1 if p.ownership == OwnershipType.Buyer else -1
-            BWDelta = (p.underlying_price / benchmark_price) * p.beta * p.delta * p.quantity * ownership
+            BWDelta = (underlying_price / benchmark_price) * p.beta * p.delta * p.quantity * ownership
             total += BWDelta
         return total
 

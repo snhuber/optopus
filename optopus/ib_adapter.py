@@ -20,11 +20,11 @@ from optopus.account import AccountItem
 from optopus.money import Money
 from optopus.data_objects import (AssetType,
                                   Asset, AssetData, OptionData,
-                                  OptionRight, DataSource,
+                                  OptionRight,
                                   OptionMoneyness, BarData,
                                   PositionData, OwnershipType,
                                   OrderAction, OrderType,
-                                  OrderStatus, TradeData)
+                                  OrderStatus, TradeData, StrategyType)
 from optopus.data_manager import DataAdapter
 from optopus.settings import (CURRENCY, HISTORICAL_YEARS, DTE_MAX, DTE_MIN,
                               EXPIRATIONS)
@@ -86,15 +86,14 @@ class IBBrokerAdapter:
                 trade = self._broker.placeOrder(contract, order)
 
     def _qualify_option(self,
-                      a: Asset,
-                      strike: float,
-                      right: OptionRight, 
-                      expiration: datetime.date) -> Contract:
-       c = Option(a.code, format_ib_date(expiration), strike, right.value, 'SMART')
-       c = self._broker.qualifyContracts(c)
-       return c
-    
-    
+                        a: Asset,
+                        strike: float,
+                        right: OptionRight,
+                        expiration: datetime.date) -> Contract:
+        c = Option(a.code, format_ib_date(expiration), strike, right.value, 'SMART')
+        c = self._broker.qualifyContracts(c)
+        return c
+
     def _onAccountValueEvent(self, item: AccountValue) -> None:
         account_item = self._translator.translate_account_value(item)
 
@@ -166,6 +165,9 @@ class IBTranslator:
 
         self._ownership_translation = {'BUY': OwnershipType.Buyer,
                                        'SELL': OwnershipType.Seller}
+        
+        self._strategy_translation = {'SNP': StrategyType.SellNakedPut}
+
 
     def translate_account_value(self, item: AccountValue) -> AccountItem:
         opt_money = None
@@ -253,7 +255,9 @@ class IBTranslator:
             right = None
 
         if item.order.orderRef:
-            algorithm, strategy, rol = item.order.orderRef.split('-')
+            algorithm, strategy_id, rol = item.order.orderRef.split('-')
+            _, strategy_type, _, _ = strategy.split('_')
+            strategy_type = self.strategy_translation[strategy_type]
         else:
             algorithm = strategy = rol = 'NA'
 
@@ -276,7 +280,8 @@ class IBTranslator:
                           strike=item.contract.strike,
                           right=right,
                           algorithm=algorithm,
-                          strategy=strategy,
+                          strategy_id=strategy_id,
+                          strategy_type=strategy_type,
                           rol=rol,
                           implied_volatility=volatility,
                           order_status=order_status,
@@ -376,14 +381,14 @@ class IBDataAdapter(DataAdapter):
                      and c.exchange == 'SMART')
         if chain:
             underlying_price = a.current.market_price
-            width = a.current.stdev
+            width = a.current.stdev * underlying_price * 1.5
             expirations = [exp for exp in chain.expirations]
             expirations = [e for e in expirations if parse_ib_date(e) in EXPIRATIONS]
             expirations = [e for e in expirations if (parse_ib_date(e) - datetime.datetime.now().date()).days < DTE_MAX and 
                                                     (parse_ib_date(e) - datetime.datetime.now().date()).days > DTE_MIN]
             expirations = sorted(expirations)
-            min_strike_price = underlying_price - width * 1.5
-            max_strike_price = underlying_price + width * 1.5
+            min_strike_price = underlying_price - width
+            max_strike_price = underlying_price + width
             strikes = sorted(strike for strike in chain.strikes
                        if min_strike_price < strike < max_strike_price)
             rights = ['P', 'C']

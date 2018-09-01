@@ -28,7 +28,7 @@ class AssetType(Enum):
 
 
 class StrategyType(Enum):
-    SellNakedPut = 'Sell naked put'
+    SellNakedPut = 'SNP'
 
 
 class OrderType(Enum):
@@ -247,7 +247,7 @@ class OptionData():
         self.intrinsic_value = intrinsic_value
         self.extrinsic_value = extrinsic_value
         self.time = time
-        self.DTE = None
+        self.DTE = (self.expiration - datetime.datetime.now().date()).days
 
     def to_dict(self, fields: List[str]) -> OrderedDict:
         d = OrderedDict()
@@ -336,6 +336,7 @@ class PositionData():
         self.algorithm = None
         self.strategy = None
         self.rol = None
+        self.DTE = None
 
     def to_dict(self) -> OrderedDict:
         d = OrderedDict()
@@ -356,6 +357,7 @@ class PositionData():
         d['algorithm'] = self.algorithm
         d['strategy'] = self.strategy
         d['rol'] = self.rol
+        d['DTE'] = self.DTE
         return(d)
 
 
@@ -436,7 +438,8 @@ class TradeData:
                  strike: int = None,
                  right: OptionRight = None,
                  algorithm: str = None,
-                 strategy: StrategyType = None,
+                 strategy_type: StrategyType = None,
+                 strategy_id: str = None,
                  rol: str = None,
                  implied_volatility: float = None,
                  order_status: OrderStatus = None,
@@ -452,7 +455,8 @@ class TradeData:
         self.strike = strike
         self.right = right
         self.algorithm = algorithm
-        self.strategy = strategy
+        self.strategy_type = strategy_type
+        self.strategy_id = strategy_id
         self.rol = rol
         self.implied_volatility = implied_volatility
         self.order_status = order_status
