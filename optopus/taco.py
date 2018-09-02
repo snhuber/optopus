@@ -28,7 +28,7 @@ class Taco():
                        strategy=strategy_id,
                        rol='1')  
         
-        opt.process([s])
+        self._opt.process([s])
         
     
     def manage(self):

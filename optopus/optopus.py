@@ -13,6 +13,7 @@ from optopus.data_manager import DataManager, DataSource
 from optopus.portfolio_manager import PortfolioManager
 from optopus.order_manager import OrderManager
 from optopus.watch_list import WATCH_LIST
+from optopus.data_objects import AssetData, OptionData, PositionData
 
 
 class Optopus():
@@ -41,11 +42,10 @@ class Optopus():
 
         print('[Adding underlyings]')
         self._data_manager.initialize_assets()
-        self._data_manager.update_assets()
+        self.update_assets()
 
         print('\n[Updating portfolio]')
-        self._data_manager.match_trades_positions()
-        self._portfolio_manager.update_positions()
+        #self._portfolio_manager.update_positions()
 
         print('\n[Started]\n')
 
@@ -73,32 +73,41 @@ class Optopus():
         # self._data_manager.update_assets()
         # self.dummy.calculate_signals()
 
-    def positions(self) -> object:
-        return self._data_manager.positions()
 
-    def assets(self, fields: List[str]) -> List[OrderedDict]:
-        return self._data_manager.assets(fields)
 
-    def asset_historic(self, code: str) -> List[OrderedDict]:
-        return self._data_manager.asset_historic(code)
+    def assets(self) -> List[AssetData]:
+        return [a.current for a in self._data_manager._assets.values()]
 
-    def asset_historic_IV(self, code: str) -> List[OrderedDict]:
-        return self._data_manager.asset_historic_IV(code)
+    def asset_historical(self, code: str) -> List[OrderedDict]:
+        return self._data_manager._assets[code]._historical_data
+
+    def asset_historical_IV(self, code: str) -> List[OrderedDict]:
+        return self._data_manager._assets[code]._historical_IV_data
 
     def assets_matrix(self, field: str) -> dict:
-        return self._data_manager._assets_matrix(field)
+        return self._data_manager.assets_matrix(field)
 
     def update_assets(self):
-        return (self._data_manager.update_assets())
+        self._data_manager.update_current_assets()
+        self._data_manager.update_historical_assets()
+        self._data_manager.update_historical_IV_assets()
+        self._data_manager.compute_assets()
     
     def update_positions(self):
         return(self._data_manager.update_positions())
 
-    def option_chain(self, code: str, fields: List[str]) -> List[OrderedDict]:
-        return (self._data_manager.option_chain(code, fields))
+    def option_chain(self, code: str) -> List[OptionData]:
+        return self._data_manager._assets[code]._option_chain
+    
+    def update_option_chain(self, code: str) -> None:
+        self._data_manager.update_option_chain(code)
 
-    def account(self) -> OrderedDict:
-        return(self._data_manager.account())
-        
-    def portfolio(self) -> OrderedDict:
-        return(self._portfolio_manager.to_dict())
+    def positions(self) -> List[PositionData]:
+        return [p for p in self._data_manager._positions.values()]
+
+    def account(self) -> Account:
+        return [self._data_manager._account]
+
+    def portfolio(self) -> PortfolioManager:
+        pass
+        # return [self._portfolio_manager]

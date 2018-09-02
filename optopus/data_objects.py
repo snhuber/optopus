@@ -53,6 +53,11 @@ class OptionMoneyness(Enum):
     NA = 'NA'
 
 
+class OwnershipType(Enum):
+    Buyer = 'BUY'
+    Seller = 'SELL'
+
+
 class Asset():
     def __init__(self,
                  code: str,
@@ -154,42 +159,24 @@ class AssetData():
         self.IV_rank_h = None
         self.IV_percentile_h = None
         self.volume_h = None
-        #self.stdev = None
+        self.stdev = None
         self.beta = None
         self.one_month_return = None
         self.correlation = None
+        self.midpoint = (self.bid + self.ask) / 2
 
-    @property
-    def midpoint(self) -> float:
-        return(self.bid + self.ask) / 2
+        # market_price is the first available one of:
+        # - last price if within current bid/ask;
+        # - average of bid and ask (midpoint);
+        # - close price.
+        self.market_price = nan
+        if (is_nan(self.midpoint) or self.bid <= self.last <= self.ask):
+            self.market_price = self.last
 
-    @property
-    def market_price(self) -> float:
-        """
-        Return the first available one of:
-        * last price if within current bid/ask;
-        * average of bid and ask (midpoint);
-        * close price.
-        """
-        midpoint = self.midpoint
-        if (is_nan(midpoint) or self.bid <= self.last <= self.ask):
-            price = self.last
-        else:
-            price = nan
-
-        if is_nan(price):
-            price = midpoint
-        if is_nan(price) or price == -1:
-            price = self.close
-        return price
-
-    def to_dict(self, fields: List[str]) -> OrderedDict:
-        d = OrderedDict()
-        d['code'] = getattr(self, 'code')
-        for field in fields:
-            if hasattr(self, field):
-                d[field] = getattr(self, field)
-        return d
+        if is_nan(self.market_price):
+            self.market_price = self.midpoint
+        if is_nan(self.market_price) or self.market_price == -1:
+            self.market_price = self.close
 
 
 class OptionData():
@@ -249,17 +236,6 @@ class OptionData():
         self.time = time
         self.DTE = (self.expiration - datetime.datetime.now().date()).days
 
-    def to_dict(self, fields: List[str]) -> OrderedDict:
-        d = OrderedDict()
-        d['code'] = getattr(self, 'code')
-        d['expiration'] = getattr(self, 'expiration')
-        d['strike'] = getattr(self, 'strike')
-        d['right'] = getattr(self, 'right')
-        for field in fields:
-            if hasattr(self, field):
-                d[field] = getattr(self, field)
-        return d
-
 
 class BarDataType(Enum):
     Trades = 'TRADES'
@@ -286,24 +262,6 @@ class BarData():
         self.bar_average = bar_average
         self.bar_volume = bar_volume
         self.bar_count = bar_count
-
-    def to_dict(self) -> OrderedDict:
-        d = OrderedDict()
-        d['code'] = self.code
-        d['bar_time'] = self.bar_time
-        d['bar_open'] = self.bar_open
-        d['bar_high'] = self.bar_high
-        d['bar_low'] = self.bar_low
-        d['bar_close'] = self.bar_close
-        d['bar_average'] = self.bar_average
-        d['bar_volume'] = self.bar_volume
-        d['bar_count'] = self.bar_count
-        return d
-
-
-class OwnershipType(Enum):
-    Buyer = 'BUY'
-    Seller = 'SELL'
 
 
 class PositionData():

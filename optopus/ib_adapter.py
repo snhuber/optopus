@@ -5,7 +5,6 @@ Created on Sun Aug  5 07:21:38 2018
 
 @author: ilia
 """
-# from ib_insync import *
 import datetime
 from typing import List
 from pathlib import Path

@@ -9,8 +9,9 @@ SELL_COLOR = 'tomato'
 BUY_COLOR = 'green'
 UNDERLYING_COLOR = 'lightseagreen'
 DATA_DIR = 'data'
+POSITIONS_FILE = 'positions.pckl'
 DTE_MAX = 50
-DTE_MIN = 25
+DTE_MIN = 0
 EXPIRATIONS = [datetime.date(2018, 9, 21),
                datetime.date(2018, 10, 19),
                datetime.date(2018, 11, 16),

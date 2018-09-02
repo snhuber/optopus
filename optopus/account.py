@@ -62,13 +62,10 @@ class Account:
         self.SMA = None
 
     def update_item_value(self, item: AccountItem) -> bool:
-        if hasattr(self, item.tag):
-            if item.value:
-                setattr(self, item.tag, item.value)
-            else:
-                setattr(self, item.tag, item.money)
+        if item.value:
+            setattr(self, item.tag, item.value)
         else:
-            raise(AttributeError)
+            setattr(self, item.tag, item.money)
 
     @property
     def id(self) -> str:

@@ -5,13 +5,14 @@ Created on Sun Aug  5 07:34:45 2018
 
 @author: ilia
 """
-import datetime
 from ib_insync.ib import IB
 from optopus.ib_adapter import IBBrokerAdapter
 from optopus.optopus import Optopus
-from optopus.utils import pdo, plot_option_positions
-from optopus.data_manager import DataSource
+from optopus.utils import to_df
 from optopus.taco import Taco
+
+print(__name__)
+
 
 host = '127.0.0.1'
 # port = 4002  # gateway
@@ -24,7 +25,7 @@ opt = Optopus(IBBrokerAdapter(ib, host, port, client))
 opt.start()
 
 algo = Taco(opt)
-algo.evaluate()
+#algo.evaluate()
 
 
 
@@ -39,9 +40,15 @@ algo.evaluate()
 #print(pdo(opt.asset_historic('EEM')))
 #print(pdo(opt.asset_historic_IV('EEM')))
 #print(opt.assets_matrix('bar_close'))
-#print(opt.assets(['IV_h', 'IV_rank_h']))
+print(to_df(opt.assets()))
 
-
+#print(to_df(opt.asset_historical('SPY')))
+#print(to_df(opt.asset_historical_IV('SPY')))
+#print(to_df(opt.option_chain('SPY')))
+print(to_df(opt.account()))
+#print(to_df(opt.portfolio()))
+#print(opt.assets_matrix('bar_close'))
+#print(to_df(opt.positions()))
 
 
 ib.sleep(3)

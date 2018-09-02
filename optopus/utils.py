@@ -1,18 +1,23 @@
 # -*- coding: utf-8 -*-
+from collections import OrderedDict
 import datetime
+from enum import Enum
+from typing import List
 from optopus.settings import BUY_COLOR, SELL_COLOR, UNDERLYING_COLOR
+import pandas as pd
+from pandas import DataFrame
 
-def pdo(records):
-    import pandas as pd
-    #if len(records) == 1:
-    #    o = pd.Series(records[0])
-    #else:
-    o = pd.DataFrame(records)
-        #o.set_index(['code'], inplace=True)
-        #o.sort_index(inplace=True)
-    return o
-
-
+def to_df(items: List[object]) -> DataFrame:
+    rows = []
+    for i in items:
+        d = OrderedDict()
+        for attr, value in vars(i).items():
+            try:
+                iter(value)
+            except TypeError:
+                d[attr] = value.value if isinstance(value, Enum) else value
+        rows.append(d)
+    return pd.DataFrame(rows)
 
 def plot_option_positions(positions, underlying_price: float):
     import matplotlib.pyplot as plt
