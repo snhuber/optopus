@@ -296,27 +296,9 @@ class PositionData():
         self.rol = None
         self.DTE = None
 
-    def to_dict(self) -> OrderedDict:
-        d = OrderedDict()
-        d['code'] = self.code
-        d['asset_type'] = self.asset_type.value
-        d['expiration'] = self.expiration
-        d['strike'] = self.strike
-        d['right'] = self.right.value
-        d['ownership'] = self.ownership.value
-        d['quantity'] = self.quantity
-        d['average_cost'] = self.average_cost
-        d['option_price'] = self.option_price
-        d['trade_price'] = self.trade_price
-        d['trade_time'] = self.trade_time
-        d['underlying_price'] = self.underlying_price
-        d['beta'] = self.beta
-        d['delta'] = self.delta
-        d['algorithm'] = self.algorithm
-        d['strategy'] = self.strategy
-        d['rol'] = self.rol
-        d['DTE'] = self.DTE
-        return(d)
+    def __repr__(self):
+        return (f'{self.__class__.__name__}('
+                f'{self.__dict__})')
 
 
 class SignalData():
@@ -329,7 +311,8 @@ class SignalData():
                  strike: int = None,
                  right: OptionRight = None,
                  algorithm: str = None,
-                 strategy: StrategyType = None,
+                 strategy_type: StrategyType = None,
+                 strategy_id: str = None,
                  rol: str = None) -> None:
 
         self.asset = asset
@@ -342,10 +325,15 @@ class SignalData():
         self.right = right
 
         self.algorithm = algorithm
-        self.strategy = strategy
+        self.strategy_type = strategy_type
+        self.strategy_id = strategy_id
         self.rol = rol
 
         self.time = datetime.datetime.now()
+
+    def __repr__(self):
+        return (f'{self.__class__.__name__}('
+                f'{self.__dict__})')
 
 
 class OrderStatus(Enum):
@@ -384,6 +372,10 @@ class OrderData():
 
         self.time = datetime.datetime.now()
 
+    def __repr__(self):
+        return (f'{self.__class__.__name__}('
+                f'{self.__dict__})')
+
 
 # https://interactivebrokers.github.io/tws-api/order_submission.html
 class TradeData:
@@ -421,3 +413,7 @@ class TradeData:
         self.time = time
         self.price = price
         self.data_source_id = data_source_id
+
+    def __repr__(self):
+        return (f'{self.__class__.__name__}('
+                f'{self.__dict__})')

@@ -239,7 +239,7 @@ class IBTranslator:
         asset_type = self._sectype_translation[item.contract.secType]
         ownership = self._ownership_translation[item.order.action]
 
-        print('ON TRANSLATE TRADE', ownership, item.order.action)
+        #print('ON TRANSLATE TRADE', ownership, item.order.action)
 
         expiration = item.contract.lastTradeDateOrContractMonth
         if expiration:
@@ -255,10 +255,9 @@ class IBTranslator:
 
         if item.order.orderRef:
             algorithm, strategy_id, rol = item.order.orderRef.split('-')
-            _, strategy_type, _, _ = strategy.split('_')
-            strategy_type = self.strategy_translation[strategy_type]
-        else:
-            algorithm = strategy = rol = 'NA'
+            _, strategy_type, _, _ = strategy_id.split('_')
+            strategy_type = self._strategy_translation[strategy_type]
+
 
         if item.order.volatility:
             volatility = item.order.volatility
@@ -422,7 +421,6 @@ class IBDataAdapter(DataAdapter):
             for q in chunks(q_contracts, 50):
                 tickers += self._broker.reqTickers(*q)
                 self._broker.sleep(1)
-
             options = []
             for t in tickers:
                 # There others Greeks for bid, ask and last prices

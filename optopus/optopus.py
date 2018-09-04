@@ -45,7 +45,7 @@ class Optopus():
         self.update_assets()
 
         print('\n[Updating portfolio]')
-        #self._portfolio_manager.update_positions()
+        self._portfolio_manager.update_positions()
 
         print('\n[Started]\n')
 

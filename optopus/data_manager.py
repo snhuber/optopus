@@ -92,6 +92,8 @@ class DataManager():
                                  position.ownership)
 
         self._positions[key] = position
+        
+        self._log.debug('[_position] position event fired')
 
     def _commission_report(self, trade: TradeData) -> None:
         """Adds a new trade to a position. After update the position, save all
@@ -102,6 +104,7 @@ class DataManager():
         trade : TradeData
             the new trade
         """
+        self._log.debug('[_commission_report] commission report event fired')
         key = self._position_key(trade.code,
                                  trade.asset_type,
                                  trade.expiration,
@@ -109,9 +112,11 @@ class DataManager():
                                  trade.right,
                                  trade.ownership)
         pos = self._positions[key]
+        self._log.debug(f'[_commission_report]: new trade {trade}')
         pos.trades.append(trade)
         # save the positions beacause we have updated one position
-        self._update_positions()
+        self._write_positions()
+        #self.update_positions()
 
     def initialize_assets(self) -> None:
         """Retrieves the ids of the assets (contracts) from IB
@@ -232,7 +237,7 @@ class DataManager():
             with open(file_name, 'wb') as file_handler:
                     pickle.dump(self._positions, file_handler)
         except Exception as e:
-            self._log.error('Failed to open positions file', exc_info=True)
+            self._log.error('[_write_positions] failed to open positions file', exc_info=True)
 
     def update_positions_trades(self) -> None:
         """Update current positions adding the trades from file
@@ -242,9 +247,11 @@ class DataManager():
             with open(file_name, 'rb') as file_handler:
                 positions_bk = pickle.load(file_handler)
                 for k, p in self._positions.items():
+                    self._log.debug(f'[update_positions_trades] key {k}')
                     if k in positions_bk.keys():
                         if positions_bk[k].trades:
                             p.trades = positions_bk[k].trades
+                            self._log.debug(f'[update_positions_trades] position trades updated {p}')
 
         except FileNotFoundError as e:
             self._log.error('Failed to open positions file', exc_info=True)
@@ -256,7 +263,9 @@ class DataManager():
         """
         self.update_positions_trades()
         
-        trades = [p.trades[-1] for p in self._positions.values() if p.trades]
+        trades = [p.trades[-1] for p in self._positions.values() if p.trades and p.quantity]
+        
+        self._log.debug(f'[update_positions] positions to update: {len(trades)}')
         
         for trade in trades:
             [option] = self._da.create_options([trade.data_source_id])
@@ -279,6 +288,7 @@ class DataManager():
             position.strategy_id = trade.strategy_id
             position.rol = trade.rol
             position.beta = self._assets[option.code].current.beta
+            self._log.debug(f'[update_positions] position updated {position}')
 
         # persits the current positions
         self._write_positions()

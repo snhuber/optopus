@@ -9,7 +9,7 @@ class OrderManager():
     def process(self, signals):
         orders=[]
         for s in signals:
-            reference = s.algorithm + '-' + s.strategy.value + '-' \
+            reference = s.algorithm + '-' + s.strategy_id + '-' \
                         + s.rol
           
             
