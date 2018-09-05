@@ -6,23 +6,21 @@ class OrderManager():
     def __init__(self, broker) -> None:
         self._broker = broker
 
-    def process(self, signals):
-        orders=[]
-        for s in signals:
-            reference = s.algorithm + '-' + s.strategy_id + '-' \
-                        + s.rol
-          
-            
-            o = OrderData(asset=s.asset,
-                      action=s.action,
-                      quantity=s.quantity,
-                      price=s.price,
-                      order_type=OrderType.Limit,
-                      expiration=s.expiration,
-                      strike=s.strike,
-                      right=s.right,
-                      reference=reference)
-            orders.append(o)
-        self._broker.place_order(orders)
+    def process(self, signal):
+        reference = signal.algorithm + '-' + signal.strategy_id + '-' \
+                    + signal.rol
+      
+        
+        order = OrderData(asset=signal.asset,
+                          action=signal.action,
+                          quantity=signal.quantity,
+                          price=signal.price,
+                          order_type=OrderType.Limit,
+                          expiration=signal.expiration,
+                          strike=signal.strike,
+                          right=signal.right,
+                          reference=reference)
+        
+        self._broker.place_order(order)
             
         

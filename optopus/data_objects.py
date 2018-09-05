@@ -34,6 +34,7 @@ class StrategyType(Enum):
 class OrderType(Enum):
     Market = 'MTK'
     Limit = 'LMT'
+    Stop = 'STP'
 
 
 class OrderAction(Enum):

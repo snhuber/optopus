@@ -27,7 +27,7 @@ opt.start()
 
 print('\n\n\n[TACO]\n')
 algo = Taco(opt)
-algo.evaluate()
+algo.produce_signal()
 #print(opt.account())
 #print(pdo(opt.assets(['market_price', 'IV_h', 'IV_rank_h',
 #                      'IV_percentile_h', 'volume_h', 'volume',

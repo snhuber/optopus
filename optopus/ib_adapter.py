@@ -13,7 +13,7 @@ from ib_insync.ib import IB, Contract
 from ib_insync.contract import Index, Option, Stock
 from ib_insync.objects import (AccountValue, Position, Fill,
                                CommissionReport)
-from ib_insync.order import Trade, LimitOrder
+from ib_insync.order import Trade, LimitOrder, StopOrder
 
 from optopus.account import AccountItem
 from optopus.money import Money
@@ -23,7 +23,8 @@ from optopus.data_objects import (AssetType,
                                   OptionMoneyness, BarData,
                                   PositionData, OwnershipType,
                                   OrderAction, OrderType,
-                                  OrderStatus, TradeData, StrategyType)
+                                  OrderStatus, OrderData,
+                                  TradeData, StrategyType)
 from optopus.data_manager import DataAdapter
 from optopus.settings import (CURRENCY, HISTORICAL_YEARS, DTE_MAX, DTE_MIN,
                               EXPIRATIONS)
@@ -68,21 +69,67 @@ class IBBrokerAdapter:
     def sleep(self, time: float) -> None:
         self._broker.sleep(time)
 
-    def place_order(self, orders) -> None:
-        for o in orders:
-            [contract] = self._qualify_option(o.asset,
-                                            o.strike,
-                                            o.right,
-                                            o.expiration)
+    def _place_SNP (self, contract: Contract, order: OrderData):
+            
+        """Create a bracket order for Sell Naket Put strategy.
+        Profit - Order - StopLoss
+        
+        Parameters
+        ----------
+        signal : SignalData
+        
+        https://interactivebrokers.github.io/tws-api/bracket_order.html
+        """
 
-            action = 'BUY' if o.action == OrderAction.Buy else 'SELL'
-            if o.order_type == OrderType.Limit:
-                order = LimitOrder(action=action,
-                                   totalQuantity=o.quantity,
-                                   lmtPrice=o.price,
-                                   orderRef=o.reference,
-                                   tif='DAY')
-                trade = self._broker.placeOrder(contract, order)
+        action = 'BUY' if order.action == OrderAction.Buy else 'SELL'
+        reverse_action = 'BUY' if action == 'SELL' else 'SELL'
+        take_profit_price = order.price / 2
+        stop_loss_price = order.price * 2
+        
+        parent = LimitOrder(action=action,
+                            totalQuantity=order.quantity,
+                            lmtPrice=order.price,
+                            orderRef=order.reference,
+                            orderId=self._broker.client.getReqId(),
+                            transmit=False)
+        take_profit = LimitOrder(action=reverse_action,
+                                 totalQuantity=order.quantity,
+                                 lmtPrice=take_profit_price,
+                                 orderRef=order.reference,
+                                 orderId=self._broker.client.getReqId(),
+                                 transmit=False,
+                                 parentId=parent.orderId)
+        stop_loss = StopOrder(action=reverse_action,
+                              totalQuantity=order.quantity,
+                              stopPrice=stop_loss_price,
+                              orderRef=order.reference,
+                              orderId=self._broker.client.getReqId(),
+                              transmit=True,
+                              parentId=parent.orderId)
+        
+        
+        
+        self._broker.placeOrder(contract, parent)
+        self._broker.placeOrder(contract, take_profit)
+        self._broker.placeOrder(contract, stop_loss)
+
+    def place_order(self, order: OrderData) -> None:
+
+            [contract] = self._qualify_option(order.asset,
+                                            order.strike,
+                                            order.right,
+                                            order.expiration)
+
+            #broker_order = self._make_order_SNP(order)
+            #action = 'BUY' if o.action == OrderAction.Buy else 'SELL'
+            #if o.order_type == OrderType.Limit:
+            #    order = LimitOrder(action=action,
+            #                       totalQuantity=o.quantity,
+            #                       lmtPrice=o.price,
+            #                       orderRef=o.reference,
+            #                       tif='DAY')
+            self._place_SNP(contract, order)
+            #trade = self._broker.placeOrder(contract, broker_order)
 
     def _qualify_option(self,
                         a: Asset,
