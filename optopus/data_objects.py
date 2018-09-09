@@ -37,12 +37,7 @@ class OrderType(Enum):
     Stop = 'STP'
 
 
-class OrderAction(Enum):
-    Buy = 'BUY'
-    Sell = 'SELL'
-
-
-class OptionRight(Enum):
+class RightType(Enum):
     Call = 'C'
     Put = 'P'
 
@@ -59,6 +54,24 @@ class OwnershipType(Enum):
     Seller = 'SELL'
 
 
+class OrderRol(Enum):
+    NewLeg = 'NL'
+    TakeProfit = 'TP'
+    StopLoss = 'SL'
+
+
+class OrderStatus(Enum):
+    APIPending = 'API pending'
+    PendingSubmit = 'Pending submit'
+    PendingCancel = 'Pending cancel'
+    PreSubmitted = 'Presubmitted'
+    Submitted = 'Submitted'
+    APICancelled = 'API cancelled'
+    Cancelled = 'Cancelled'
+    Filled = 'Filled'
+    Inactive = 'Inactive'
+
+
 class Asset():
     def __init__(self,
                  code: str,
@@ -70,7 +83,7 @@ class Asset():
         self.data_source = data_source
         self.currency = CURRENCY
         self._data = None
-        self._data_source_id = None
+        self._contract = None
         self._historical_data = None
         self._historical_IV_data = None
         self._historical_updated = None
@@ -184,8 +197,8 @@ class OptionData():
     def __init__(self,
                  code: str,
                  expiration: datetime.date,
-                 strike: int,
-                 right: OptionRight,
+                 strike: float,
+                 right: RightType,
                  high: float = nan,
                  low: float = nan,
                  close: float = nan,
@@ -272,8 +285,8 @@ class PositionData():
                  ownership: OwnershipType,
                  quantity: int,
                  expiration: datetime.date = None,
-                 strike: int = None,
-                 right: OptionRight = None,
+                 strike: float = None,
+                 right: RightType = None,
                  average_cost: float = None) -> None:
 
         self.code = code
@@ -302,65 +315,22 @@ class PositionData():
                 f'{self.__dict__})')
 
 
-class SignalData():
-    def __init__(self,
-                 asset: Asset,
-                 action: OrderAction,
-                 quantity: int,
-                 price: float,
-                 expiration: datetime.date = None,
-                 strike: int = None,
-                 right: OptionRight = None,
-                 algorithm: str = None,
-                 strategy_type: StrategyType = None,
-                 strategy_id: str = None,
-                 rol: str = None) -> None:
-
-        self.asset = asset
-        self.action = action
-        self.quantity = quantity
-        self.price = price
-
-        self.expiration = expiration
-        self.strike = strike
-        self.right = right
-
-        self.algorithm = algorithm
-        self.strategy_type = strategy_type
-        self.strategy_id = strategy_id
-        self.rol = rol
-
-        self.time = datetime.datetime.now()
-
-    def __repr__(self):
-        return (f'{self.__class__.__name__}('
-                f'{self.__dict__})')
-
-
-class OrderStatus(Enum):
-    PendingSubmit = 'Pending submit'
-    PendingCancel = 'Pending cancel'
-    PreSubmitted = 'Presubmitted'
-    Submitted = 'Submitted'
-    Cancelled = 'Cancelled'
-    Filled = 'Filled'
-    Inactive = 'Inactive'
-
-
 class OrderData():
     def __init__(self,
                  asset: Asset,
-                 action: OrderAction,
+                 rol: OrderRol,
+                 ownership: OwnershipType,
                  quantity: int,
                  price: float,
                  order_type: OrderType,
                  expiration: datetime.date = None,
-                 strike: int = None,
-                 right: OptionRight = None,
+                 strike: float = None,
+                 right: RightType = None,
                  reference: str = None):
 
         self.asset = asset
-        self.action = action
+        self.rol = rol
+        self.ownership = ownership
         self.quantity = quantity
         self.price = price
         self.order_type = order_type
@@ -368,10 +338,11 @@ class OrderData():
         self.expiration = expiration
         self.strike = strike
         self.right = right
+        self.created = datetime.datetime.now()
+        self.updated = self.created
+        self.status = OrderStatus.APIPending
 
-        self.reference = reference
-
-        self.time = datetime.datetime.now()
+        self.order_id = reference + '_' + self.rol.value + ' ' + self.created.strftime('%d-%m-%Y %H:%M:%S')
 
     def __repr__(self):
         return (f'{self.__class__.__name__}('
@@ -381,40 +352,73 @@ class OrderData():
 # https://interactivebrokers.github.io/tws-api/order_submission.html
 class TradeData:
     def __init__(self,
-                 code: str,
-                 asset_type: AssetType,
-                 ownership: OwnershipType,
-                 quantity: int,
-                 expiration: datetime.date = None,
-                 strike: int = None,
-                 right: OptionRight = None,
-                 algorithm: str = None,
-                 strategy_type: StrategyType = None,
-                 strategy_id: str = None,
-                 rol: str = None,
-                 implied_volatility: float = None,
-                 order_status: OrderStatus = None,
-                 time: datetime.datetime = None,
-                 price: float = None,
-                 data_source_id: object = None):
-
-        self.code = code
-        self.asset_type = asset_type
-        self.ownership = ownership
-        self.quantity = quantity
-        self.expiration = expiration
-        self.strike = strike
-        self.right = right
-        self.algorithm = algorithm
-        self.strategy_type = strategy_type
-        self.strategy_id = strategy_id
-        self.rol = rol
-        self.implied_volatility = implied_volatility
-        self.order_status = order_status
-        self.time = time
-        self.price = price
-        self.data_source_id = data_source_id
+                 order_id: str,
+                 status: OrderStatus,
+                 remaining: int):
+        self.order_id = order_id
+        self.status = status
+        self.remaining = remaining
 
     def __repr__(self):
         return (f'{self.__class__.__name__}('
                 f'{self.__dict__})')
+
+
+class Leg:
+    def __init__(self,
+                 asset: Asset,
+                 ownership: OwnershipType,
+                 right: RightType,
+                 expiration: datetime.date,
+                 strike: float,
+                 multiplier: int,
+                 strategy_price: float,
+                 strategy_quantity: int,
+                 currency: Currency,
+                 take_profit_factor: float,
+                 stop_loss_factor: float,
+                 contract: object) -> None:
+        self.asset = asset
+        self.ownership = ownership
+        self.right = right
+        self.expiration = expiration
+        self.strike = strike
+        self.multiplier = multiplier
+        self.strategy_price = strategy_price
+        self.strategy_quantity = strategy_quantity
+        self.order_price = None
+        self.order_quantity = None
+        self.currency = currency
+        self.contract = contract
+        self.take_profit_factor = take_profit_factor
+        self.stop_loss_factor = stop_loss_factor
+        self.orders = {}
+        self.leg_id = asset.code + ' ' + ownership.value + ' ' + right.value + ' ' + str(strike) + ' ' + expiration.strftime('%d-%m-%Y')
+
+    def __repr__(self):
+        return(f'{self.__class__.__name__}('
+               f'{self.asset.code, self.ownership.value, self.right.value, self.strike, self.expiration, self.multiplier, self.currency})')
+        
+
+class Strategy:
+    def __init__(self,
+                 asset: Asset,
+                 strategy_type: StrategyType,
+                 legs: List[Leg]):
+        self.asset = asset
+        self.strategy_type = strategy_type
+        self.legs = {}
+        for leg in legs:
+            self.legs[leg.leg_id] = leg
+        self.created = datetime.datetime.now()
+        self.updated = self.created
+        self.strategy_id = self.asset.code + ' ' + self.created.strftime('%d-%m-%Y %H:%M:%S')
+
+    def __repr__(self):
+        return(f'{self.__class__.__name__}('
+               f'{self.asset.code, self.strategy_type.value, self.created}'
+               f'\n{self.legs!r}')
+
+
+
+

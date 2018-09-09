@@ -6,6 +6,7 @@ Created on Sun Aug  5 07:21:38 2018
 @author: ilia
 """
 import datetime
+import logging
 from typing import List
 from pathlib import Path
 
@@ -19,12 +20,12 @@ from optopus.account import AccountItem
 from optopus.money import Money
 from optopus.data_objects import (AssetType,
                                   Asset, AssetData, OptionData,
-                                  OptionRight,
+                                  RightType,
                                   OptionMoneyness, BarData,
                                   PositionData, OwnershipType,
-                                  OrderAction, OrderType,
+                                  OrderRol,
                                   OrderStatus, OrderData,
-                                  TradeData, StrategyType)
+                                  TradeData, StrategyType, Strategy)
 from optopus.data_manager import DataAdapter
 from optopus.settings import (CURRENCY, HISTORICAL_YEARS, DTE_MAX, DTE_MIN,
                               EXPIRATIONS)
@@ -47,7 +48,7 @@ class IBBrokerAdapter:
         self.emit_position_event = None
         self.emit_execution_details = None
         self.emit_commission_report = None
-        self.emit_new_order = None
+        #self.emit_new_order = None
         self.emit_order_status = None
 
         self.execute_every_period = None
@@ -56,7 +57,7 @@ class IBBrokerAdapter:
         self._broker.accountValueEvent += self._onAccountValueEvent
         self._broker.positionEvent += self._onPositionEvent
         # self._broker.execDetailsEvent += self._onExecDetailsEvent
-        self._broker.newOrderEvent += self._onNewOrderEvent
+        #self._broker.newOrderEvent += self._onNewOrderEvent
         self._broker.orderStatusEvent += self._onOrderStatusEvent
         self._broker.commissionReportEvent += self._onCommissionReportEvent
 
@@ -69,77 +70,49 @@ class IBBrokerAdapter:
     def sleep(self, time: float) -> None:
         self._broker.sleep(time)
 
-    def _place_SNP (self, contract: Contract, order: OrderData):
-            
-        """Create a bracket order for Sell Naket Put strategy.
+    def place_new_strategy(self, strategy: Strategy) -> None:
+        """Place a new strategy at the market. Each leg countains the orders:
         Profit - Order - StopLoss
         
         Parameters
         ----------
-        signal : SignalData
+        strateg : Strategy
         
         https://interactivebrokers.github.io/tws-api/bracket_order.html
         """
-
-        action = 'BUY' if order.action == OrderAction.Buy else 'SELL'
-        reverse_action = 'BUY' if action == 'SELL' else 'SELL'
-        take_profit_price = order.price / 2
-        stop_loss_price = order.price * 2
+        for leg in strategy.legs.values():
+            for order in leg.orders.values():
+                ownership = 'BUY' if order.ownership == OwnershipType.Buyer else 'SELL'
+                reverse_ownership = 'BUY' if ownership == 'SELL' else 'SELL'
+                    
+                if order.rol == OrderRol.NewLeg:
+                    parent = LimitOrder(action=ownership,
+                                        totalQuantity=order.quantity,
+                                        lmtPrice=order.price,
+                                        orderRef=order.order_id,
+                                        orderId=self._broker.client.getReqId(),
+                                        transmit=False)
+                if order.rol == OrderRol.TakeProfit:
+                    take_profit = LimitOrder(action=reverse_ownership,
+                                             totalQuantity=order.quantity,
+                                             lmtPrice=order.price,
+                                             orderRef=order.order_id,
+                                             orderId=self._broker.client.getReqId(),
+                                             transmit=False,
+                                             parentId=parent.orderId)
+                if order.rol == OrderRol.StopLoss:
+                    stop_loss = StopOrder(action=reverse_ownership,
+                                          totalQuantity=order.quantity,
+                                          stopPrice=order.price,
+                                          orderRef=order.order_id,
+                                          orderId=self._broker.client.getReqId(),
+                                          transmit=True,
+                                          parentId=parent.orderId)
         
-        parent = LimitOrder(action=action,
-                            totalQuantity=order.quantity,
-                            lmtPrice=order.price,
-                            orderRef=order.reference,
-                            orderId=self._broker.client.getReqId(),
-                            transmit=False)
-        take_profit = LimitOrder(action=reverse_action,
-                                 totalQuantity=order.quantity,
-                                 lmtPrice=take_profit_price,
-                                 orderRef=order.reference,
-                                 orderId=self._broker.client.getReqId(),
-                                 transmit=False,
-                                 parentId=parent.orderId)
-        stop_loss = StopOrder(action=reverse_action,
-                              totalQuantity=order.quantity,
-                              stopPrice=stop_loss_price,
-                              orderRef=order.reference,
-                              orderId=self._broker.client.getReqId(),
-                              transmit=True,
-                              parentId=parent.orderId)
-        
-        
-        
-        self._broker.placeOrder(contract, parent)
-        self._broker.placeOrder(contract, take_profit)
-        self._broker.placeOrder(contract, stop_loss)
-
-    def place_order(self, order: OrderData) -> None:
-
-            [contract] = self._qualify_option(order.asset,
-                                            order.strike,
-                                            order.right,
-                                            order.expiration)
-
-            #broker_order = self._make_order_SNP(order)
-            #action = 'BUY' if o.action == OrderAction.Buy else 'SELL'
-            #if o.order_type == OrderType.Limit:
-            #    order = LimitOrder(action=action,
-            #                       totalQuantity=o.quantity,
-            #                       lmtPrice=o.price,
-            #                       orderRef=o.reference,
-            #                       tif='DAY')
-            self._place_SNP(contract, order)
-            #trade = self._broker.placeOrder(contract, broker_order)
-
-    def _qualify_option(self,
-                        a: Asset,
-                        strike: float,
-                        right: OptionRight,
-                        expiration: datetime.date) -> Contract:
-        c = Option(a.code, format_ib_date(expiration), strike, right.value, 'SMART')
-        c = self._broker.qualifyContracts(c)
-        return c
-
+            self._broker.placeOrder(leg.contract, parent)
+            self._broker.placeOrder(leg.contract, take_profit)
+            self._broker.placeOrder(leg.contract, stop_loss)
+ 
     def _onAccountValueEvent(self, item: AccountValue) -> None:
         account_item = self._translator.translate_account_value(item)
 
@@ -163,11 +136,8 @@ class IBBrokerAdapter:
 
         self.emit_commission_report(trade_data)
 
-    def _onNewOrderEvent(self, trade: Trade):
-        self.emit_new_order()
-
     def _onOrderStatusEvent(self, trade: Trade):
-        self.emit_order_status()
+        self.emit_order_status(self._translator.translate_trade(trade))
 
 
 class IBTranslator:
@@ -198,13 +168,15 @@ class IBTranslator:
                                      'FUND': AssetType.MutualFund,
                                      'IOPT': AssetType.Warrant}
 
-        self._right_translation = {'C': OptionRight.Call,
-                                   'P': OptionRight.Put}
+        self._right_translation = {'C': RightType.Call,
+                                   'P': RightType.Put}
 
-        self._order_status_translation = {'PendingSubmit': OrderStatus.PendingSubmit,
+        self._order_status_translation = {'ApiPending': OrderStatus.APIPending,
+                                          'PendingSubmit': OrderStatus.PendingSubmit,
                                           'PendingCancel': OrderStatus.PendingCancel,
                                           'PreSubmitted': OrderStatus.PreSubmitted,
                                           'Submitted': OrderStatus.Submitted,
+                                          'ApiCancelled': OrderStatus.APICancelled,
                                           'Cancelled': OrderStatus.Cancelled,
                                           'Filled': OrderStatus.Filled,
                                           'Inactive': OrderStatus.Inactive}
@@ -282,57 +254,15 @@ class IBTranslator:
         return position
 
     def translate_trade(self, item: Trade) -> TradeData:
-        code = item.contract.symbol
-        asset_type = self._sectype_translation[item.contract.secType]
-        ownership = self._ownership_translation[item.order.action]
 
-        #print('ON TRANSLATE TRADE', ownership, item.order.action)
-
-        expiration = item.contract.lastTradeDateOrContractMonth
-        if expiration:
-            expiration = parse_ib_date(expiration)
-        else:
-            expiration = None
-
-        right = item.contract.right
-        if right:
-            right = self._right_translation[right]
-        else:
-            right = None
-
-        if item.order.orderRef:
-            algorithm, strategy_id, rol = item.order.orderRef.split('-')
-            _, strategy_type, _, _ = strategy_id.split('_')
-            strategy_type = self._strategy_translation[strategy_type]
-
-
-        if item.order.volatility:
-            volatility = item.order.volatility
-        else:
-            volatility = nan
-
-        order_status = self._order_status_translation[item.orderStatus.status]
-        price = item.orderStatus.avgFillPrice
-        quantity = item.orderStatus.filled
-        time = datetime.datetime.now()
-        data_source_id = item.contract
-
-        trade = TradeData(code=code,
-                          asset_type=asset_type,
-                          expiration=expiration,
-                          ownership=ownership,
-                          quantity=quantity,
-                          strike=item.contract.strike,
-                          right=right,
-                          algorithm=algorithm,
-                          strategy_id=strategy_id,
-                          strategy_type=strategy_type,
-                          rol=rol,
-                          implied_volatility=volatility,
-                          order_status=order_status,
-                          time=time,
-                          price=price,
-                          data_source_id=data_source_id)
+        #print(item)
+        
+        order_id = item.order.orderRef
+        status = self._order_status_translation[item.orderStatus.status]
+        remaining = item.orderStatus.remaining
+        trade = TradeData(order_id=order_id,
+                          status=status,
+                          remaining=remaining)
         return trade
 
     def translate_bars(self, code: str, ibbars: list) -> list:
@@ -354,6 +284,7 @@ class IBDataAdapter(DataAdapter):
     def __init__(self, broker: IB, translator: IBTranslator) -> None:
         self._broker = broker
         self._translator = translator
+        self._log = logging.getLogger(__name__)
 
     def initialize_assets(self, assets: List[Asset]) -> dict:
         contracts = []
@@ -373,7 +304,7 @@ class IBDataAdapter(DataAdapter):
             raise ValueError('Error: ambiguous contracts')
 
     def update_assets(self, assets: List[Asset]) -> List[AssetData]:
-        contracts = [a.data_source_id for a in assets]
+        contracts = [a.contract for a in assets]
         tickers = self._broker.reqTickers(*contracts)
         data = []
         for t in tickers:
@@ -395,7 +326,7 @@ class IBDataAdapter(DataAdapter):
         return data
 
     def update_historical(self, a: Asset) -> None:
-        bars = self._broker.reqHistoricalData(a.data_source_id,
+        bars = self._broker.reqHistoricalData(a.contract,
                                               endDateTime='',
                                               durationStr=str(HISTORICAL_YEARS) + ' Y',
                                               barSizeSetting='1 day',
@@ -405,7 +336,7 @@ class IBDataAdapter(DataAdapter):
         return self._translator.translate_bars(a.code, bars)
 
     def update_historical_IV(self, a: Asset) -> None:
-        bars = self._broker.reqHistoricalData(a.data_source_id,
+        bars = self._broker.reqHistoricalData(a.contract,
                                               endDateTime='',
                                               durationStr=str(HISTORICAL_YEARS) + ' Y',
                                               barSizeSetting='1 day',
@@ -416,14 +347,16 @@ class IBDataAdapter(DataAdapter):
 
 
     def create_optionchain(self, a: Asset) -> List[OptionData]:
-        chains = self._broker.reqSecDefOptParams(a.data_source_id.symbol,
+        chains = self._broker.reqSecDefOptParams(a.contract.symbol,
                                                  '',
-                                                 a.data_source_id.secType,
-                                                 a.data_source_id.conId)
+                                                 a.contract.secType,
+                                                 a.contract.conId)
 
         chain = next(c for c in chains
-                     if c.tradingClass == a.data_source_id.symbol
+                     if c.tradingClass == a.contract.symbol
                      and c.exchange == 'SMART')
+        
+        self._log.debug(f'Total chain elements {len(chain)}')
         if chain:
             underlying_price = a.current.market_price
             width = a.current.stdev * underlying_price * 1.5
@@ -439,7 +372,7 @@ class IBDataAdapter(DataAdapter):
             rights = ['P', 'C']
 
             # Create the options contracts
-            contracts = [Option(a.data_source_id.symbol,
+            contracts = [Option(a.contract.symbol,
                                 expiration,
                                 strike,
                                 right,
@@ -499,7 +432,7 @@ class IBDataAdapter(DataAdapter):
                         code=t.contract.symbol,
                         expiration=parse_ib_date(t.contract.lastTradeDateOrContractMonth),
                         strike=t.contract.strike,
-                        right=OptionRight.Call if t.contract.right =='C' else OptionRight.Put,
+                        right=RightType.Call if t.contract.right =='C' else RightType.Put,
                         high=t.high,
                         low=t.low,
                         close=t.close,

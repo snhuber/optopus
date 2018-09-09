@@ -9,6 +9,7 @@ SELL_COLOR = 'tomato'
 BUY_COLOR = 'green'
 UNDERLYING_COLOR = 'lightseagreen'
 DATA_DIR = 'data'
+STRATEGY_DIR = 'strategy'
 POSITIONS_FILE = 'positions.pckl'
 DTE_MAX = 50
 DTE_MIN = 0

@@ -11,9 +11,6 @@ from optopus.optopus import Optopus
 from optopus.utils import to_df
 from optopus.taco import Taco
 
-print(__name__)
-
-
 host = '127.0.0.1'
 # port = 4002  # gateway
 port = 7497  # TWS PAPER TRADING
@@ -22,26 +19,20 @@ client = 10
 
 ib = IB()
 opt = Optopus(IBBrokerAdapter(ib, host, port, client))
-opt.start()
-
 
 print('\n\n\n[TACO]\n')
 algo = Taco(opt)
-algo.produce_signal()
-#print(opt.account())
-#print(pdo(opt.assets(['market_price', 'IV_h', 'IV_rank_h',
-#                      'IV_percentile_h', 'volume_h', 'volume',
-#                      'bid', 'ask', 'stdev', 'beta'])))
+opt.register_algorithm(algo.produce_signal)
 
-#print(pdo(opt.option_chain('EEM', ['option_price', 'delta', 'DTE'])))
+opt.start()
 
-#print(pdo(opt.asset_historic('EEM')))
-#print(pdo(opt.asset_historic_IV('EEM')))
-#print(opt.assets_matrix('bar_close'))
-#print(to_df(opt.assets()))
+
+
+
 
 #print(to_df(opt.asset_historical('SPY')))
 #print(to_df(opt.asset_historical_IV('SPY')))
+#opt.update_option_chain('SPY')
 #print(to_df(opt.option_chain('SPY')))
 #print(to_df(opt.account()))
 #print(to_df(opt.portfolio()))
@@ -55,4 +46,5 @@ algo.produce_signal()
 
 #print('\nBeta weighted delta', opt.portfolio()['BWDelta'])
 
+#opt.pause(10)
 opt.stop()

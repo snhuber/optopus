@@ -3,9 +3,6 @@ from typing import List
 from optopus.data_objects import StrategyType, PositionData
 
 
-
- 
-
 class Strategy():
     def __init__(self, strategy_type: StrategyType, strategy_id: str):
         self.strategy_type = strategy_type
@@ -52,3 +49,5 @@ class StrategyFactory():
             return (SellNakedPut(strategy_id))
         else:
             print('unknow strategy type')
+
+

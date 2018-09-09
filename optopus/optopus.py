@@ -6,14 +6,14 @@ Created on Sat Aug  4 16:30:25 2018
 @author: ilia
 """
 import datetime
-from typing import List
+from typing import List, Callable
 from collections import OrderedDict
 from optopus.account import Account
 from optopus.data_manager import DataManager, DataSource
 from optopus.portfolio_manager import PortfolioManager
 from optopus.order_manager import OrderManager
 from optopus.watch_list import WATCH_LIST
-from optopus.data_objects import AssetData, OptionData, PositionData
+from optopus.data_objects import AssetData, OptionData, PositionData, Strategy
 
 
 class Optopus():
@@ -21,19 +21,20 @@ class Optopus():
 
     def __init__(self, broker) -> None:
         self._broker = broker
+        self._algorithms = []
 
     def start(self) -> None:
         print('[Initializating managers]')
         self._data_manager = DataManager(self._broker._data_adapter,
                                          WATCH_LIST)
         self._portfolio_manager = PortfolioManager(self._data_manager)
-        self._order_manager = OrderManager(self._broker)
+        self._order_manager = OrderManager(self._broker, self._data_manager)
 
         # Events
         self._broker.emit_account_item_event = self._data_manager._account_item
         self._broker.emit_position_event = self._data_manager._position
-        self._broker.emit_new_order = self._new_order
-        self._broker.emit_order_status = self._order_status
+        #self._broker.emit_new_order = self._new_order
+        self._broker.emit_order_status = self._order_manager.order_status_changed
         self._broker.emit_commission_report = self._data_manager._commission_report
 
         print('[Connecting to IB broker]')
@@ -45,11 +46,11 @@ class Optopus():
         self.update_assets()
 
         print('\n[Updating portfolio]')
-        self._portfolio_manager.update_positions()
+        #self._portfolio_manager.update_positions()
 
         print('\n[Started]\n')
 
-        # self._beat()
+        self._loop()
 
     def stop(self) -> None:
         self._broker.disconnect()
@@ -60,20 +61,16 @@ class Optopus():
     def process(self, signals) -> None:
         self._order_manager.process(signals)
 
-    def _new_order(self) -> None:
-        pass
-
-    def _order_status(self) -> None:
-        pass
-
-    def _beat(self) -> None:
-        # PIECE OF SHIT!!!!
+    def _loop(self) -> None:
         for t in self._broker._broker.timeRange(datetime.time(0, 0), datetime.datetime(2100, 1, 1, 0), 10):
             print('+')
+            for algo in self._algorithms:
+                algo()
         # self._data_manager.update_assets()
         # self.dummy.calculate_signals()
 
-
+    def register_algorithm(self, algo: Callable[[], None]) -> None:
+        self._algorithms.append(algo)
 
     def assets(self) -> List[AssetData]:
         return [a.current for a in self._data_manager._assets.values()]
@@ -111,3 +108,7 @@ class Optopus():
     def portfolio(self) -> PortfolioManager:
         pass
         # return [self._portfolio_manager]
+
+    def new_strategy(self, strategy: Strategy) -> None:
+        self._data_manager.add_strategy(strategy)
+        self._order_manager.execute_new_strategy(strategy)

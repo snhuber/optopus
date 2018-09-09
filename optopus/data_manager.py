@@ -1,18 +1,19 @@
 # -*- coding: utf-8 -*-
 import datetime
 from collections import OrderedDict
+import copy
 import logging
+import os
 import pickle
 from typing import List
 
 from pathlib import Path
-from statistics import stdev
 from optopus.account import Account, AccountItem
 from optopus.data_objects import (DataSource,
                                   PositionData, TradeData, BarData,
                                   Asset, AssetData, OptionData,
-                                  AssetType, OwnershipType, OptionRight)
-from optopus.settings import (HISTORICAL_YEARS, DATA_DIR, STDEV_DAYS,
+                                  AssetType, OwnershipType, RightType, Strategy)
+from optopus.settings import (HISTORICAL_YEARS, DATA_DIR, STRATEGY_DIR,
                               POSITIONS_FILE)
 from optopus.utils import is_nan, format_ib_date
 from optopus.computation import asset_computation, assets_computation
@@ -62,7 +63,13 @@ class DataManager():
                         for code, asset_type in watch_list.items()}
         self._positions = {}
         self._strategies = {}
+        
+        self._strategy_repository = StrategyRepository()
+        self._strategies = self._strategy_repository.all_items()
+        
         self._log = logging.getLogger(__name__)
+        
+        
 
     def _account_item(self, item: AccountItem) -> None:
         """Updates a attribute of account object. Executed by a event.
@@ -122,11 +129,11 @@ class DataManager():
         """Retrieves the ids of the assets (contracts) from IB
         """
         self._log.info('Retrieving underlying contracts')
-        data_source_ids = self._da.initialize_assets(self._assets.values())
-        for i in data_source_ids:
-                self._assets[i].data_source_id = data_source_ids[i]
+        contracts = self._da.initialize_assets(self._assets.values())
+        for i in contracts:
+                self._assets[i].contract = contracts[i]
         self._log.info('Underlying contracts are retrieved: %s',
-                       len(data_source_ids))
+                       len(contracts))
 
     def update_current_assets(self) -> None:
         """Updates the current asset values.
@@ -200,7 +207,7 @@ class DataManager():
                       asset_type: AssetType,
                       expiration: datetime.date,
                       strike: float,
-                      right: OptionRight,
+                      right: RightType,
                       ownership: OwnershipType) -> str:
         """Create a identifier from parameters
         
@@ -214,7 +221,7 @@ class DataManager():
             expiration date of the option
         strike: float
             strike value of the option
-        right: OptionRight
+        right: RightType
             right of the option
         ownershiop: OwnershipType
             ownership of the option
@@ -268,7 +275,7 @@ class DataManager():
         self._log.debug(f'[update_positions] positions to update: {len(trades)}')
         
         for trade in trades:
-            [option] = self._da.create_options([trade.data_source_id])
+            [option] = self._da.create_options([trade.contract])
             key = self._position_key(option.code,
                                      option.asset_type,
                                      option.expiration,
@@ -303,3 +310,56 @@ class DataManager():
                 self._strategies[s] = s
 
             s.add_position(p)
+
+    def get_strategy(self, strategy_id: str) -> Strategy:
+        return copy.deepcopy(self._strategies[strategy_id])
+        
+    def add_strategy(self, strategy: Strategy) -> None:
+        self._strategy_repository.add(strategy)
+        self._strategies[strategy.strategy_id] = copy.deepcopy(strategy)
+        
+    def update_strategy(self, strategy: Strategy) -> None:
+        self._strategy_repository.update(strategy)
+        self._strategies[strategy.strategy_id] = copy.deepcopy(strategy)
+        self._strategies[strategy.strategy_id].updated = datetime.datetime.now()
+
+class StrategyRepository:
+    """Repository class for mananging strategies
+    """
+    def __init__(self) -> None:
+        self._path = Path(Path.cwd() / DATA_DIR / STRATEGY_DIR)
+        self._log = logging.getLogger(__name__)
+
+    def add(self, item: Strategy) -> None:
+        file_name = self._file_name(item)
+        try:
+            with open(file_name, 'wb') as file_handler:
+                    pickle.dump(item, file_handler)
+        except Exception as e:
+            self._log.error('[add] failed to write strategy file', exc_info=True)
+
+    def update(self, item: Strategy) -> None:
+        self.add(item)
+
+    def delete(self, item: Strategy) -> None:
+        file_name = self._file_name(item)
+        try:
+            os.remove(file_name)
+        except Exception as e:
+            self._log.error('[delete] faile to delete strategy file', exce_info=True)
+
+    def all_items(self) -> List[Strategy]:
+        strategies = {}
+        for f in self._path.glob('*.pckl'):
+            file_name = self._path / f
+            try:
+                with open(file_name, 'rb') as file_handler:
+                    s = pickle.load(file_handler)
+                    strategies[s.strategy_id] = s
+                self._log.debug(f'Loaded strategy from file: {f}')
+            except FileNotFoundError as e:
+                self._log.error('Failed to open strategy file', exc_info=True)
+        return strategies
+
+    def _file_name(self, item: Strategy) -> str:
+        return self._path / (item.strategy_id + '.pckl')
