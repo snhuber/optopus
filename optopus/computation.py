@@ -65,7 +65,7 @@ def _IV_percentile(ad: AssetData, IV_value: float) -> float:
     return len(IV_values) / (HISTORICAL_YEARS * 252)
 
 
-def asset_computation(ads: Dict[str, Asset]) -> None:
+def assets_loop_computation(ads: Dict[str, Asset]) -> None:
     for a in ads.values():
         a.current.volume_h = a._historical_data[-1].bar_volume
         a.current.IV_h = a._historical_IV_data[-1].bar_close
@@ -73,7 +73,7 @@ def asset_computation(ads: Dict[str, Asset]) -> None:
         a.current.IV_percentile_h = _IV_percentile(a, a.current.IV_h)
         a.current.one_month_return = (a._historical_data[-1].bar_close - a._historical_data[-22].bar_close) / a._historical_data[-22].bar_close
 
-def assets_computation(ads: Dict[str, Asset], close_values: Dict[str, List]) -> None:
+def assets_vector_computation(ads: Dict[str, Asset], close_values: Dict[str, List]) -> None:
     # Calculate beta
     beta = calc_beta(close_values)
     for code, value in beta.items():

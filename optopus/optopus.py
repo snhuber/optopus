@@ -9,7 +9,6 @@ import datetime
 from typing import List, Callable
 from collections import OrderedDict
 import logging
-from optopus.account import Account
 from optopus.data_manager import DataManager
 from optopus.portfolio_manager import PortfolioManager
 from optopus.order_manager import OrderManager
@@ -58,9 +57,6 @@ class Optopus():
     def pause(self, time: float) -> None:
         self._broker.sleep(time)
 
-    def process(self, signals) -> None:
-        self._order_manager.process(signals)
-
     def _loop(self) -> None:
         for t in self._broker._broker.timeRange(datetime.time(0, 0), datetime.datetime(2100, 1, 1, 0), 10):
             self._data_manager.check_strategy_positions()
@@ -68,9 +64,6 @@ class Optopus():
             for algorithm in self._algorithms:
                 algorithm()
             self._broker.sleep(SLEEP_LOOP)
-
-    def register_algorithm(self, algo: Callable[[], None]) -> None:
-        self._algorithms.append(algo)
 
     def assets(self) -> List[AssetData]:
         return [a.current for a in self._data_manager._assets.values()]
@@ -89,26 +82,13 @@ class Optopus():
         self._data_manager.update_historical_assets()
         self._data_manager.update_historical_IV_assets()
         self._data_manager.compute_assets()
-    
-    def update_positions(self):
-        return(self._data_manager.update_positions())
 
     def option_chain(self, code: str) -> List[OptionData]:
         return self._data_manager._assets[code]._option_chain
     
-    def update_option_chain(self, code: str) -> None:
-        self._data_manager.update_option_chain(code)
-
-    def positions(self) -> List[PositionData]:
-        return [p for p in self._data_manager._positions.values()]
-
-    def account(self) -> Account:
-        return [self._data_manager._account]
-
-    def portfolio(self) -> PortfolioManager:
-        pass
-        # return [self._portfolio_manager]
-
+    def register_algorithm(self, algo: Callable[[], None]) -> None:
+        self._algorithms.append(algo)
+    
     def new_strategy(self, strategy: Strategy) -> None:
         self._data_manager.add_strategy(strategy)
         self._order_manager.execute_new_strategy(strategy)

@@ -18,11 +18,11 @@ console_handler = logging.StreamHandler(sys.stdout)
 console_handler.setLevel(logging.INFO)
  
 # Create a Formatter for formatting the log messages
-logger_formatter = logging.Formatter("%(asctime)s — %(name)s — %(levelname)s — %(message)s")
- 
+file_formatter = logging.Formatter("%(asctime)s — %(name)s — %(levelname)s — %(message)s")
+console_formatter = logging.Formatter("%(asctime)s — %(name)s — %(levelname)s — %(message)s") 
 # Add the Formatter to the Handlers
-file_handler.setFormatter(logger_formatter)
-console_handler.setFormatter(logger_formatter)
+file_handler.setFormatter(file_formatter)
+console_handler.setFormatter(console_formatter)
  
 # Add the Handlers to the Logger
 logger.addHandler(file_handler)

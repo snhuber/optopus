@@ -15,8 +15,6 @@ from ib_insync.contract import Index, Option, Stock
 from ib_insync.objects import (AccountValue, Position, Fill,
                                CommissionReport)
 from ib_insync.order import Trade, LimitOrder, StopOrder
-
-from optopus.account import AccountItem
 from optopus.money import Money
 from optopus.data_objects import (AssetType,
                                   Asset, AssetData, OptionData,
@@ -43,23 +41,9 @@ class IBBrokerAdapter:
         self._translator = IBTranslator()
         self._data_adapter = IBDataAdapter(self._broker, self._translator)
 
-        # Callable objects. Optopus direcction
-        self.emit_account_item_event = None
-        #self.emit_position_event = None
-        #self.emit_execution_details = None
-        #self.emit_commission_report = None
-        #self.emit_new_order = None
-        self.emit_order_status = None
-
-        self.execute_every_period = None
-
-        # Cannect to ib_insync events
-        #self._broker.accountValueEvent += self._onAccountValueEvent
-        #self._broker.positionEvent += self._onPositionEvent
-        # self._broker.execDetailsEvent += self._onExecDetailsEvent
-        #self._broker.newOrderEvent += self._onNewOrderEvent
+        self.emit_order_status = None  
         self._broker.orderStatusEvent += self._onOrderStatusEvent
-        #self._broker.commissionReportEvent += self._onCommissionReportEvent
+
 
     def connect(self) -> None:
         self._broker.connect(self._host, self._port, self._client)
@@ -115,29 +99,6 @@ class IBBrokerAdapter:
                               parentId=parent.orderId)
         self._broker.placeOrder(contract, stop_loss)
 
-    def _onAccountValueEvent(self, item: AccountValue) -> None:
-        account_item = self._translator.translate_account_value(item)
-
-        if account_item:  # item translated
-            self.emit_account_item_event(account_item)
-
-    def _onPositionEvent(self, item: Position) -> PositionData:
-        position = self._translator.translate_position(item)
-        if position:
-            self.emit_position_event(position)
-
-    def _onCommissionReportEvent(self, trade: Trade, fill: Fill, report: CommissionReport):
-        h = "\n[{}]\n".format(datetime.datetime.now())
-        t = h + str(trade)
-        file_name = Path.cwd() / "data" / "execution.log"
-        with open(file_name, "a") as f:
-            f.write(t)
-        trade_data = self._translator.translate_trade(trade)
-
-        #self._broker.sleep(1)  # wait for new position event
-
-        self.emit_commission_report(trade_data)
-
     def _onOrderStatusEvent(self, trade: Trade):
         self.emit_order_status(self._translator.translate_trade(trade))
 
@@ -145,19 +106,6 @@ class IBBrokerAdapter:
 class IBTranslator:
     """Translate the IB tags and values to Ocptopus"""
     def __init__(self) -> None:
-        self._account_translation = {'AccountCode': 'id',
-                                     'AvailableFunds': 'funds',
-                                     'BuyingPower': 'buying_power',
-                                     'TotalCashValue': 'cash',
-                                     'DayTradesRemaining': 'max_day_trades',
-                                     'NetLiquidation': 'net_liquidation',
-                                     'InitMarginReq': 'initial_margin',
-                                     'MaintMarginReq': 'maintenance_margin',
-                                     'ExcessLiquidity': 'excess_liquidity',
-                                     'Cushion': 'cushion',
-                                     'GrossPositionValue': 'gross_position_value',
-                                     'EquityWithLoanValue': 'equity_with_loan',
-                                     'SMA': 'SMA'}
         self._sectype_translation = {'STK': AssetType.Stock,
                                      'OPT': AssetType.Option,
                                      'FUT': AssetType.Future,
@@ -188,40 +136,6 @@ class IBTranslator:
         
         self._strategy_translation = {'SNP': StrategyType.SellNakedPut}
 
-
-    def translate_account_value(self, item: AccountValue) -> AccountItem:
-        opt_money = None
-        opt_value = None
-
-        opt_tag = self._translate_account_tag(item.tag)
-
-        if opt_tag:
-            if item.currency and is_number(item.value):
-                if not (item.currency == 'BASE'):
-                    opt_money = self._translate_value_currency(item.value,
-                                                               item.currency)
-            else:
-                opt_value = item.value
-            return AccountItem(item.account, opt_tag, opt_value, opt_money)
-        else:
-            return None
-
-    def _translate_account_tag(self, ib_tag: str) -> str:
-            tag = None
-            if ib_tag in self._account_translation:
-                tag = self._account_translation[ib_tag]
-            return tag
-
-    def _translate_value_currency(self,
-                                  ib_value: str,
-                                  ib_currency: str) -> Money:
-        m = None
-
-        if ib_currency == CURRENCY.value:
-            m = Money(ib_value, CURRENCY)
-
-        return m
-
     def translate_account(self, values: List[AccountValue]) -> AccountData:
         account = AccountData()
         for v in values:
@@ -250,7 +164,6 @@ class IBTranslator:
                     account.equity_with_loan = Money(v.value, CURRENCY)
                 elif v.tag == 'SMA':
                     account.SMA = Money(v.value, CURRENCY)
-                    
 
     def translate_position(self, item: Position) -> PositionData:
         code = item.contract.symbol
@@ -318,6 +231,7 @@ class IBTranslator:
             bars.append(b)
         return bars
 
+
 class IBDataAdapter(DataAdapter):
     def __init__(self, broker: IB, translator: IBTranslator) -> None:
         self._broker = broker
@@ -354,7 +268,7 @@ class IBDataAdapter(DataAdapter):
         else:
             raise ValueError('Error: ambiguous contracts')
 
-    def update_assets(self, assets: List[Asset]) -> List[AssetData]:
+    def get_assets(self, assets: List[Asset]) -> List[AssetData]:
         contracts = [a.contract for a in assets]
         tickers = self._broker.reqTickers(*contracts)
         data = []
@@ -376,7 +290,7 @@ class IBDataAdapter(DataAdapter):
             data.append(ad)
         return data
 
-    def update_historical(self, a: Asset) -> None:
+    def get_historical(self, a: Asset) -> None:
         bars = self._broker.reqHistoricalData(a.contract,
                                               endDateTime='',
                                               durationStr=str(HISTORICAL_YEARS) + ' Y',
@@ -386,7 +300,7 @@ class IBDataAdapter(DataAdapter):
                                               formatDate=1)
         return self._translator.translate_bars(a.code, bars)
 
-    def update_historical_IV(self, a: Asset) -> None:
+    def get_historical_IV(self, a: Asset) -> None:
         bars = self._broker.reqHistoricalData(a.contract,
                                               endDateTime='',
                                               durationStr=str(HISTORICAL_YEARS) + ' Y',
@@ -397,7 +311,7 @@ class IBDataAdapter(DataAdapter):
         return self._translator.translate_bars(a.code, bars)
 
 
-    def create_optionchain(self, a: Asset) -> List[OptionData]:
+    def get_optionchain(self, a: Asset) -> List[OptionData]:
         chains = self._broker.reqSecDefOptParams(a.contract.symbol,
                                                  '',
                                                  a.contract.secType,

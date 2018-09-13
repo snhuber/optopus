@@ -13,19 +13,9 @@ class OrderManager():
         self._log = logging.getLogger(__name__)
 
     def order_status_changed(self, trade) -> None:
-        #order_id = trade.order_id
-        #strategy_id, leg_id, _ = order_id.split('_')
-        #strategy = self._data_manager.get_strategy(strategy_id)
-        #order = strategy.legs[leg_id].orders[order_id]
-        #order.status = trade.status
-        #if trade.status == OrderStatus.Filled and trade.remaining == 0:
-        #    order.filled = datetime.datetime.now()
-        #    order.commission = trade.commission
-        #    self._log.debug(f'Order totally filled')
-        #order.updated = datetime.datetime.now()
-        
-        #self._data_manager.update_strategy(strategy)
-
+        if trade.status == OrderStatus.Filled and trade.remaining == 0:
+            self._log.info(f'Order filled (remaining {trade.remaining}): {trade.order_id}')
+      
         self._log.debug(f'Order status changed {trade.order_id} : {trade.status.value}')
 
     def execute_new_strategy(self, strategy: Strategy) -> None:
