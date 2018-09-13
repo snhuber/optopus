@@ -8,12 +8,14 @@ Created on Sat Aug  4 16:30:25 2018
 import datetime
 from typing import List, Callable
 from collections import OrderedDict
+import logging
 from optopus.account import Account
-from optopus.data_manager import DataManager, DataSource
+from optopus.data_manager import DataManager
 from optopus.portfolio_manager import PortfolioManager
 from optopus.order_manager import OrderManager
 from optopus.watch_list import WATCH_LIST
 from optopus.data_objects import AssetData, OptionData, PositionData, Strategy
+from optopus.settings import SLEEP_LOOP
 
 
 class Optopus():
@@ -22,34 +24,32 @@ class Optopus():
     def __init__(self, broker) -> None:
         self._broker = broker
         self._algorithms = []
+        self._log = logging.getLogger(__name__)
 
     def start(self) -> None:
-        print('[Initializating managers]')
         self._data_manager = DataManager(self._broker._data_adapter,
                                          WATCH_LIST)
         self._portfolio_manager = PortfolioManager(self._data_manager)
         self._order_manager = OrderManager(self._broker, self._data_manager)
 
         # Events
-        self._broker.emit_account_item_event = self._data_manager._account_item
-        self._broker.emit_position_event = self._data_manager._position
+        #self._broker.emit_account_item_event = self._data_manager._account_item
+        #self._broker.emit_position_event = self._data_manager._position
         #self._broker.emit_new_order = self._new_order
         self._broker.emit_order_status = self._order_manager.order_status_changed
-        self._broker.emit_commission_report = self._data_manager._commission_report
+        #self._broker.emit_commission_report = self._data_manager._commission_report
 
-        print('[Connecting to IB broker]')
+        self._log.debug('Connecting to IB broker')
         self._broker.connect()
         self._broker.sleep(1)
+        
+        self._data_manager.update_account()
 
-        print('[Adding underlyings]')
+        self._log.debug('Retrieving underling data')
         self._data_manager.initialize_assets()
         self.update_assets()
 
-        print('\n[Updating portfolio]')
-        #self._portfolio_manager.update_positions()
-
-        print('\n[Started]\n')
-
+        self._log.info('System started')
         self._loop()
 
     def stop(self) -> None:
@@ -63,11 +63,11 @@ class Optopus():
 
     def _loop(self) -> None:
         for t in self._broker._broker.timeRange(datetime.time(0, 0), datetime.datetime(2100, 1, 1, 0), 10):
-            print('+')
-            for algo in self._algorithms:
-                algo()
-        # self._data_manager.update_assets()
-        # self.dummy.calculate_signals()
+            self._data_manager.check_strategy_positions()
+            self._data_manager.update_strategy_options()
+            for algorithm in self._algorithms:
+                algorithm()
+            self._broker.sleep(SLEEP_LOOP)
 
     def register_algorithm(self, algo: Callable[[], None]) -> None:
         self._algorithms.append(algo)

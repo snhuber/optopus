@@ -20,7 +20,6 @@ client = 10
 ib = IB()
 opt = Optopus(IBBrokerAdapter(ib, host, port, client))
 
-print('\n\n\n[TACO]\n')
 algo = Taco(opt)
 opt.register_algorithm(algo.produce_signal)
 

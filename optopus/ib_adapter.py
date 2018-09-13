@@ -7,7 +7,7 @@ Created on Sun Aug  5 07:21:38 2018
 """
 import datetime
 import logging
-from typing import List
+from typing import List, Dict
 from pathlib import Path
 
 from ib_insync.ib import IB, Contract
@@ -23,7 +23,7 @@ from optopus.data_objects import (AssetType,
                                   RightType,
                                   OptionMoneyness, BarData,
                                   PositionData, OwnershipType,
-                                  OrderRol,
+                                  AccountData,
                                   OrderStatus, OrderData,
                                   TradeData, StrategyType, Strategy)
 from optopus.data_manager import DataAdapter
@@ -45,21 +45,21 @@ class IBBrokerAdapter:
 
         # Callable objects. Optopus direcction
         self.emit_account_item_event = None
-        self.emit_position_event = None
-        self.emit_execution_details = None
-        self.emit_commission_report = None
+        #self.emit_position_event = None
+        #self.emit_execution_details = None
+        #self.emit_commission_report = None
         #self.emit_new_order = None
         self.emit_order_status = None
 
         self.execute_every_period = None
 
         # Cannect to ib_insync events
-        self._broker.accountValueEvent += self._onAccountValueEvent
-        self._broker.positionEvent += self._onPositionEvent
+        #self._broker.accountValueEvent += self._onAccountValueEvent
+        #self._broker.positionEvent += self._onPositionEvent
         # self._broker.execDetailsEvent += self._onExecDetailsEvent
         #self._broker.newOrderEvent += self._onNewOrderEvent
         self._broker.orderStatusEvent += self._onOrderStatusEvent
-        self._broker.commissionReportEvent += self._onCommissionReportEvent
+        #self._broker.commissionReportEvent += self._onCommissionReportEvent
 
     def connect(self) -> None:
         self._broker.connect(self._host, self._port, self._client)
@@ -70,49 +70,51 @@ class IBBrokerAdapter:
     def sleep(self, time: float) -> None:
         self._broker.sleep(time)
 
-    def place_new_strategy(self, strategy: Strategy) -> None:
-        """Place a new strategy at the market. Each leg countains the orders:
-        Profit - Order - StopLoss
-        
-        Parameters
-        ----------
-        strateg : Strategy
+    def place_orders(self, 
+                     strategy: Strategy, 
+                     parent_order: OrderData,
+                     take_profit_order: OrderData,
+                     stop_loss_order: OrderData) -> None:
+        """Place a orders at the market. 
         
         https://interactivebrokers.github.io/tws-api/bracket_order.html
         """
-        for leg in strategy.legs.values():
-            for order in leg.orders.values():
-                ownership = 'BUY' if order.ownership == OwnershipType.Buyer else 'SELL'
-                reverse_ownership = 'BUY' if ownership == 'SELL' else 'SELL'
-                    
-                if order.rol == OrderRol.NewLeg:
-                    parent = LimitOrder(action=ownership,
-                                        totalQuantity=order.quantity,
-                                        lmtPrice=order.price,
-                                        orderRef=order.order_id,
-                                        orderId=self._broker.client.getReqId(),
-                                        transmit=False)
-                if order.rol == OrderRol.TakeProfit:
-                    take_profit = LimitOrder(action=reverse_ownership,
-                                             totalQuantity=order.quantity,
-                                             lmtPrice=order.price,
-                                             orderRef=order.order_id,
-                                             orderId=self._broker.client.getReqId(),
-                                             transmit=False,
-                                             parentId=parent.orderId)
-                if order.rol == OrderRol.StopLoss:
-                    stop_loss = StopOrder(action=reverse_ownership,
-                                          totalQuantity=order.quantity,
-                                          stopPrice=order.price,
-                                          orderRef=order.order_id,
-                                          orderId=self._broker.client.getReqId(),
-                                          transmit=True,
-                                          parentId=parent.orderId)
         
-            self._broker.placeOrder(leg.contract, parent)
-            self._broker.placeOrder(leg.contract, take_profit)
-            self._broker.placeOrder(leg.contract, stop_loss)
- 
+        if len(strategy.legs) == 1:
+            contract = list(strategy.legs.values())[0].contract
+        else:
+            pass # Combo legs
+           
+        ownership = 'BUY' if parent_order.ownership == OwnershipType.Buyer else 'SELL'
+        reverse_ownership = 'BUY' if ownership == 'SELL' else 'SELL'
+            
+        
+        parent = LimitOrder(action=ownership,
+                            totalQuantity=parent_order.quantity,
+                            lmtPrice=parent_order.price,
+                            orderRef=parent_order.order_id,
+                            orderId=self._broker.client.getReqId(),
+                            transmit=False)
+        self._broker.placeOrder(contract, parent)
+
+        take_profit = LimitOrder(action=reverse_ownership,
+                                 totalQuantity=take_profit_order.quantity,
+                                 lmtPrice=take_profit_order.price,
+                                 orderRef=take_profit_order.order_id,
+                                 orderId=self._broker.client.getReqId(),
+                                 transmit=False,
+                                 parentId=parent.orderId)
+        self._broker.placeOrder(contract, take_profit)
+
+        stop_loss = StopOrder(action=reverse_ownership,
+                              totalQuantity=stop_loss_order.quantity,
+                              stopPrice=stop_loss_order.price,
+                              orderRef=stop_loss_order.order_id,
+                              orderId=self._broker.client.getReqId(),
+                              transmit=True,
+                              parentId=parent.orderId)
+        self._broker.placeOrder(contract, stop_loss)
+
     def _onAccountValueEvent(self, item: AccountValue) -> None:
         account_item = self._translator.translate_account_value(item)
 
@@ -220,6 +222,36 @@ class IBTranslator:
 
         return m
 
+    def translate_account(self, values: List[AccountValue]) -> AccountData:
+        account = AccountData()
+        for v in values:
+            if v.currency == CURRENCY.value:
+                if v.tag == 'AvailableFunds':
+                    account.funds = Money(v.value, CURRENCY)
+                elif v.tag == 'BuyingPower':
+                    account.buying_power = Money(v.value, CURRENCY)
+                elif v.tag == 'TotalCashValue':
+                    account.cash = Money(v.value, CURRENCY)
+                elif v.tag == 'DayTradesRemaining':
+                    account.max_day_trades = Money(v.value, CURRENCY)
+                elif v.tag == 'NetLiquidation':
+                    account.net_liquidation = Money(v.value, CURRENCY)
+                elif v.tag == 'InitMarginReq':
+                    account.initial_margin = Money(v.value, CURRENCY)
+                elif v.tag == 'MaintMarginReq':
+                    account.maintenance_margin = Money(v.value, CURRENCY)
+                elif v.tag == 'ExcessLiquidity':
+                    account.excess_liquidity = Money(v.value, CURRENCY)
+                elif v.tag == 'Cushion':
+                    account.cushion = Money(v.value, CURRENCY)
+                elif v.tag == 'GrossPositionValue':
+                    account.gross_position_value = Money(v.value, CURRENCY)
+                elif v.tag == 'EquityWithLoanValue':
+                    account.equity_with_loan = Money(v.value, CURRENCY)
+                elif v.tag == 'SMA':
+                    account.SMA = Money(v.value, CURRENCY)
+                    
+
     def translate_position(self, item: Position) -> PositionData:
         code = item.contract.symbol
         asset_type = self._sectype_translation[item.contract.secType]
@@ -260,9 +292,15 @@ class IBTranslator:
         order_id = item.order.orderRef
         status = self._order_status_translation[item.orderStatus.status]
         remaining = item.orderStatus.remaining
+        try:
+            commission = item.commissionReport.commission
+        except AttributeError as e:
+            commission = None
+
         trade = TradeData(order_id=order_id,
                           status=status,
-                          remaining=remaining)
+                          remaining=remaining,
+                          commission=commission)
         return trade
 
     def translate_bars(self, code: str, ibbars: list) -> list:
@@ -285,6 +323,19 @@ class IBDataAdapter(DataAdapter):
         self._broker = broker
         self._translator = translator
         self._log = logging.getLogger(__name__)
+
+    def get_account_values(self):
+        values = self._broker.accountValues()
+        account = self._translator.translate_account(values)
+        return account
+
+    def get_positions(self) -> Dict[str, PositionData]:
+        positions = self._broker.positions()
+        positions_data = {}
+        for p in positions:
+            pd = self._translator.translate_position(p)
+            positions_data[pd.position_id] = pd
+        return positions_data
 
     def initialize_assets(self, assets: List[Asset]) -> dict:
         contracts = []
@@ -396,7 +447,7 @@ class IBDataAdapter(DataAdapter):
 
             return self.create_options(q_contracts)
 
-    def create_options(self, q_contracts: List[Contract]) -> List[OptionData]:
+    def get_options(self, q_contracts: List[Contract]) -> List[OptionData]:
             tickers = []
             for q in chunks(q_contracts, 50):
                 tickers += self._broker.reqTickers(*q)
@@ -423,7 +474,7 @@ class IBDataAdapter(DataAdapter):
 
                     if underlying_price:
                         moneyness, intrinsic_value, extrinsic_value = \
-                        self._calculate_moneyness(t.contract.strike,
+                        self._calculate_moneyness(float(t.contract.strike),
                                                   option_price,
                                                   underlying_price,
                                                   t.contract.right)

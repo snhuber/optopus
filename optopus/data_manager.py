@@ -57,7 +57,7 @@ class DataManager():
             The code and type of assets we can trade
         """
         self._da = data_adapter
-        self._account = Account()
+        self.account = None
         # create the assets
         self._assets = {code: Asset(code, asset_type)
                         for code, asset_type in watch_list.items()}
@@ -68,7 +68,6 @@ class DataManager():
         self._strategies = self._strategy_repository.all_items()
         
         self._log = logging.getLogger(__name__)
-        
         
 
     def _account_item(self, item: AccountItem) -> None:
@@ -128,51 +127,40 @@ class DataManager():
     def initialize_assets(self) -> None:
         """Retrieves the ids of the assets (contracts) from IB
         """
-        self._log.info('Retrieving underlying contracts')
         contracts = self._da.initialize_assets(self._assets.values())
         for i in contracts:
                 self._assets[i].contract = contracts[i]
-        self._log.info('Underlying contracts are retrieved: %s',
-                       len(contracts))
 
     def update_current_assets(self) -> None:
         """Updates the current asset values.
         """
-        self._log.info('Updating underlying current values')
         ads = self._da.update_assets(self._assets.values())
         for ad in ads:
             self._assets[ad.code].current = ad
-        self._log.info('Underlying current values updated: %s', len(ads))
 
     def update_historical_assets(self) -> None:
         """Updates historical assets values
         """
-        self._log.info('Updating underlying historical values')
         for a in self._assets.values():
             if not a.historical_is_updated():
                 a.historical = self._da.update_historical(a)
                 a._historical_updated = datetime.datetime.now()
-        self._log.info('Underlying historical values updated')
 
     def update_historical_IV_assets(self) -> None:
         """Updates historical IV asset values
         """
-        self._log.info('Updating underlying historical values')
         for a in self._assets.values():
             if not a.historical_IV_is_updated():
                 a.historical_IV = self._da.update_historical_IV(a)
                 a._historical_IV_updated = datetime.datetime.now()
-        self._log.info('Underlying historical values updated')
 
     def compute_assets(self) -> None:
         """Computes some asset measures
         """
-        self._log.info('Computing underlying measures')
         # measures computed one by one
         asset_computation(self._assets)
         # measures computed all at one
         assets_computation(self._assets, self.assets_matrix('bar_close'))
-        self._log.info('Underlying measures computed')
         
     def assets_matrix(self, field: str) -> dict:
         """Returns a attribute from historical for every asset
@@ -311,6 +299,40 @@ class DataManager():
 
             s.add_position(p)
 
+    def update_strategy_options(self) -> None:
+        for strategy_key, strategy in self._strategies.items():
+            for leg_key, leg in strategy.legs.items():
+                leg.option = self._da.get_options([leg.contract])[0]
+                self._log.debug(f'Updated contract {leg.contract}')
+                
+    def update_account(self) -> None:
+        self.account = self._da.get_account_values()
+
+    def check_strategy_positions(self):
+        positions = self._da.get_positions()
+        for strategy_key, strategy in self._strategies.items():
+            for leg_key, leg in strategy.legs.items():
+                try:
+                    position = positions[leg.leg_id]
+                    if position.ownership == leg.ownership:
+                        if position.quantity >= leg.quantity:
+                            position.quantity -= leg.quantity
+                            #leg.position_quantity = leg.order_quantity
+                            if position.quantity == 0:
+                                del positions[position.position_id]
+                        else:
+                            self._log.warning(f'The leg {leg.leg_id} doesn\'t have enough positions')
+                    else:
+                        self._log.warning(f'The leg {leg.leg_id} and position ownerships don\'t match')
+                                       
+                except KeyError as e:
+                    self._log.warning(f'The leg {leg.leg_id} doesn\'t have any position')
+                
+                
+        if len(positions):
+            self._log.warning(f'There are excess positions')
+            
+
     def get_strategy(self, strategy_id: str) -> Strategy:
         return copy.deepcopy(self._strategies[strategy_id])
         
@@ -356,7 +378,7 @@ class StrategyRepository:
                 with open(file_name, 'rb') as file_handler:
                     s = pickle.load(file_handler)
                     strategies[s.strategy_id] = s
-                self._log.debug(f'Loaded strategy from file: {f}')
+                self._log.debug(f'Loaded {f}')
             except FileNotFoundError as e:
                 self._log.error('Failed to open strategy file', exc_info=True)
         return strategies
