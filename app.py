@@ -8,7 +8,7 @@ Created on Sun Aug  5 07:34:45 2018
 from ib_insync.ib import IB
 from optopus.ib_adapter import IBBrokerAdapter
 from optopus.optopus import Optopus
-from optopus.utils import to_df
+from optopus.utils import to_df, notify
 from optopus.taco import Taco
 
 host = '127.0.0.1'
@@ -20,12 +20,19 @@ client = 10
 ib = IB()
 opt = Optopus(IBBrokerAdapter(ib, host, port, client))
 
+notify('strategy_opened', 'FXI', 'cara', 'cola')
+
 algo = Taco(opt)
 opt.register_algorithm(algo.produce_signal)
 
 opt.start()
+#print(opt.strategies())
+#print(opt.assets())
+#df = to_df(opt.assets())
+#print(df)
 
 
+#opt.loop()
 
 
 

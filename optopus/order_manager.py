@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
-import datetime
 import logging
-from optopus.data_objects import (OrderData, OrderType, Strategy, OrderRol, 
+from optopus.data_objects import (OrderData, OrderType, Strategy, OrderRol,
                                   OrderStatus)
 from optopus.data_manager import DataManager
 
@@ -25,7 +24,7 @@ class OrderManager():
             reference = strategy.strategy_id + '_' + leg.leg_id
             profit_price = round(leg.order_price * leg.take_profit_factor, 2)
             stop_price = round(leg.order_price * leg.stop_loss_factor, 2)
-            parent = OrderData(asset=leg.asset,
+            parent = OrderData(code=leg.code,
                               rol=OrderRol.NewLeg,
                               ownership=leg.ownership,
                               quantity=leg.quantity,
@@ -36,7 +35,7 @@ class OrderManager():
                               right=leg.right,
                               reference=reference,
                               contract=leg.contract)
-            profit = OrderData(asset=leg.asset,
+            profit = OrderData(code=leg.code,
                                rol=OrderRol.TakeProfit,
                                ownership=leg.ownership,
                                quantity=leg.quantity,
@@ -47,7 +46,7 @@ class OrderManager():
                                right=leg.right,
                                reference=reference,
                                contract=leg.contract)
-            stop = OrderData(asset=leg.asset,
+            stop = OrderData(code=leg.code,
                              rol=OrderRol.StopLoss,
                              ownership=leg.ownership,
                              quantity=leg.quantity,
@@ -58,7 +57,7 @@ class OrderManager():
                              right=leg.right,
                              reference=reference,
                              contract=leg.contract)
- 
+
         self._data_manager.update_strategy(strategy)
         self._broker.place_orders(strategy, parent, profit, stop)
 

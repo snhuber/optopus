@@ -2,7 +2,7 @@
 from optopus.data_objects import AssetType
 
 
-WATCH_LIST = {# 'DIA': AssetType.Stock, 251 IV
+WATCH_LIST = {'DIA': AssetType.Stock,
               'EEM': AssetType.Stock,
               'EFA': AssetType.Stock,
               'EWZ': AssetType.Stock,
@@ -14,7 +14,7 @@ WATCH_LIST = {# 'DIA': AssetType.Stock, 251 IV
               'IWM': AssetType.Stock,
               'KRE': AssetType.Stock,
               'OIH': AssetType.Stock,
-              # 'QQQ': AssetType.Stock, not enough historic data
+              # 'QQQ': AssetType.Stock,
               'SLV': AssetType.Stock,
               'SPY': AssetType.Stock,
               'TLT': AssetType.Stock,
@@ -30,5 +30,5 @@ WATCH_LIST = {# 'DIA': AssetType.Stock, 251 IV
               'XOP': AssetType.Stock,
               'XRT': AssetType.Stock}
 
-WATCH_LIST = {'SPY': AssetType.Stock,
-              'EEM': AssetType.Stock}
+#WATCH_LIST = {'SPY': AssetType.Stock,
+#              'EEM': AssetType.Stock}

@@ -1,9 +1,9 @@
-# -*- coding: utf-8 -*-
 from collections import OrderedDict
 import datetime
 from enum import Enum
 from typing import List
-from optopus.settings import BUY_COLOR, SELL_COLOR, UNDERLYING_COLOR
+from urllib import request, parse
+#tfrom optopus.settings import BUY_COLOR, SELL_COLOR, UNDERLYING_COLOR
 import pandas as pd
 from pandas import DataFrame
 
@@ -12,9 +12,8 @@ def to_df(items: List[object]) -> DataFrame:
     for i in items:
         d = OrderedDict()
         for attr, value in vars(i).items():
-            try:
-                iter(value)
-            except TypeError:
+            if not any([isinstance(value, list),
+                        isinstance(value, dict)]):
                 d[attr] = value.value if isinstance(value, Enum) else value
         rows.append(d)
     return pd.DataFrame(rows)
@@ -87,3 +86,13 @@ def parse_ib_date(s: str) -> datetime.date:
 
 def format_ib_date(d: datetime.date) -> str:
     return d.strftime('%Y%m%d')
+
+
+def notify(event: str, value1: str = None, value2: str = None, value3: str = None):
+    data = {'value1': value1, 'value2': value2, 'value3': value3}  
+    data = parse.urlencode(data).encode()
+    url = f'https://maker.ifttt.com/trigger/{event}/with/key/cy0nEe3pY7MJjeLakJNeL-'
+    
+    req = request.Request(url, data=data)
+    resp = request.urlopen(req)
+    print(resp.read())

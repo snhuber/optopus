@@ -6,14 +6,14 @@ Created on Sat Aug  4 16:30:25 2018
 @author: ilia
 """
 import datetime
-from typing import List, Callable
+from typing import List, Callable, Dict
 from collections import OrderedDict
 import logging
 from optopus.data_manager import DataManager
-from optopus.portfolio_manager import PortfolioManager
 from optopus.order_manager import OrderManager
 from optopus.watch_list import WATCH_LIST
-from optopus.data_objects import AssetData, OptionData, PositionData, Strategy
+from optopus.data_objects import (AssetData, OptionData,
+                                  Strategy, Account, Portfolio)
 from optopus.settings import SLEEP_LOOP
 
 
@@ -28,7 +28,6 @@ class Optopus():
     def start(self) -> None:
         self._data_manager = DataManager(self._broker._data_adapter,
                                          WATCH_LIST)
-        self._portfolio_manager = PortfolioManager(self._data_manager)
         self._order_manager = OrderManager(self._broker, self._data_manager)
 
         # Events
@@ -49,7 +48,6 @@ class Optopus():
         self.update_assets()
 
         self._log.info('System started')
-        self._loop()
 
     def stop(self) -> None:
         self._broker.disconnect()
@@ -57,14 +55,23 @@ class Optopus():
     def pause(self, time: float) -> None:
         self._broker.sleep(time)
 
-    def _loop(self) -> None:
+    def loop(self) -> None:
         for t in self._broker._broker.timeRange(datetime.time(0, 0), datetime.datetime(2100, 1, 1, 0), 10):
             self._data_manager.check_strategy_positions()
             self._data_manager.update_strategy_options()
             for algorithm in self._algorithms:
                 algorithm()
             self._broker.sleep(SLEEP_LOOP)
-
+    
+    def account(self) -> Account:
+        return self._data_manager.account
+    
+    def portfolio(self) -> Portfolio:
+        return self._data_manager.portfolio
+    
+    def strategies(self) -> Dict[str, Strategy]:
+        return self._data_manager.get_strategies()
+    
     def assets(self) -> List[AssetData]:
         return [a.current for a in self._data_manager._assets.values()]
 
@@ -81,7 +88,7 @@ class Optopus():
         self._data_manager.update_current_assets()
         self._data_manager.update_historical_assets()
         self._data_manager.update_historical_IV_assets()
-        self._data_manager.compute_assets()
+        self._data_manager.compute()
 
     def option_chain(self, code: str) -> List[OptionData]:
         return self._data_manager._assets[code]._option_chain

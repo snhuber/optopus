@@ -1,17 +1,15 @@
 # -*- coding: utf-8 -*-
-import datetime
 import copy
+import datetime
 import logging
-import os
-import pickle
-from typing import List
-
-from pathlib import Path
-from optopus.data_objects import (Asset, Strategy)
-from optopus.settings import (DATA_DIR, STRATEGY_DIR)
+from typing import Dict
+from optopus.data_objects import (Asset, Strategy, Portfolio)
 from optopus.computation import (assets_loop_computation,
-                                 assets_vector_computation)
-
+                                 assets_vector_computation,
+                                 assets_directional_assumption,
+                                 portfolio_bwd)
+from optopus.strategy_repository import StrategyRepository
+from optopus.settings import CURRENCY, MARKET_BENCHMARK
 
 class DataAdapter:
     pass
@@ -37,9 +35,10 @@ class DataManager():
     def __init__(self,  data_adapter: DataAdapter, watch_list: dict) -> None:
         self._da = data_adapter
         self.account = None
-
-        self._assets = {code: Asset(code, asset_type)
+        self.portfolio = Portfolio()
+        self._assets = {code: Asset(code, asset_type, CURRENCY)
                         for code, asset_type in watch_list.items()}
+        
         self._strategies = {}
 
         self._strategy_repository = StrategyRepository()
@@ -80,12 +79,16 @@ class DataManager():
                 a.historical_IV = self._da.get_historical_IV(a)
                 a._historical_IV_updated = datetime.datetime.now()
 
-    def compute_assets(self) -> None:
+    def compute(self) -> None:
         """Computes some asset measures
         """
         assets_loop_computation(self._assets)
-
         assets_vector_computation(self._assets, self.assets_matrix('bar_close'))
+        #print({k: a.current.market_price for (k, a) in self._assets.items()})
+        assets_directional_assumption(self._assets, self.assets_matrix('bar_close'))
+        self.portfolio.bwd = portfolio_bwd(self._da.get_positions(),
+                                           self._assets[MARKET_BENCHMARK].market_price)
+        
 
     def assets_matrix(self, field: str) -> dict:
         """Returns a attribute from historical for every asset
@@ -110,28 +113,49 @@ class DataManager():
     def check_strategy_positions(self):
         positions = self._da.get_positions()
         for strategy_key, strategy in self._strategies.items():
+            strategy_positions = 0     
             for leg_key, leg in strategy.legs.items():
                 try:
                     position = positions[leg.leg_id]
                     if position.ownership == leg.ownership:
                         if position.quantity >= leg.quantity:
                             position.quantity -= leg.quantity
-
+                            strategy_positions += leg.quantity
                             if not position.quantity:
                                 del positions[position.position_id]
                         else:
+                            strategy_positions += position.quantity
                             self._log.warning(f'Leg {leg.leg_id} doesn\'t have enough positions')
                     else:
-                        self._log.warning(f'Leg {leg.leg_id} and position ownerships don\'t match')
-
+                        self._log.warning(f'Leg {leg.leg_id} and position ownership don\'t match')
                 except KeyError as e:
-                    self._log.warning(f'Leg {leg.leg_id} doesn\'t have any position')
+                    self._log.warning(f'Leg {leg.leg_id} doesn\'t have any position')       
+
+            if strategy_positions == sum([leg.quantity 
+                                          for leg in strategy.legs.values()]) and not strategy.opened:
+                strategy.opened = datetime.datetime.now()
+                self.update_strategy(strategy)
+                self._log.info(f'Strategy {strategy_key} opened')
+            
+            if not strategy_positions and strategy.opened and not strategy.closed:
+                strategy.closed = datetime.datetime.now()
+                self.update_strategy(strategy)
+                self.delete_strategy(strategy)
+                self._log.info(f'Strategy {strategy_key} closed')
 
         if len(positions):
             self._log.warning(f'There are excess positions')
 
+        self._strategies = self._strategy_repository.all_items()
+
     def get_strategy(self, strategy_id: str) -> Strategy:
         return copy.deepcopy(self._strategies[strategy_id])
+
+    def get_strategies(self) -> Dict[str, Strategy]:
+        strategies={}
+        for k, s in self._strategies.items():
+            strategies[k] = self.get_strategy(k)
+        return strategies
 
     def add_strategy(self, strategy: Strategy) -> None:
         self._strategy_repository.add(strategy)
@@ -142,43 +166,5 @@ class DataManager():
         self._strategies[strategy.strategy_id] = copy.deepcopy(strategy)
         self._strategies[strategy.strategy_id].updated = datetime.datetime.now()
 
-class StrategyRepository:
-    """Repository class for mananging strategies
-    """
-    def __init__(self) -> None:
-        self._path = Path(Path.cwd() / DATA_DIR / STRATEGY_DIR)
-        self._log = logging.getLogger(__name__)
-
-    def add(self, item: Strategy) -> None:
-        file_name = self._file_name(item)
-        try:
-            with open(file_name, 'wb') as file_handler:
-                    pickle.dump(item, file_handler)
-        except Exception as e:
-            self._log.error('Failed to write strategy file', exc_info=True)
-
-    def update(self, item: Strategy) -> None:
-        self.add(item)
-
-    def delete(self, item: Strategy) -> None:
-        file_name = self._file_name(item)
-        try:
-            os.remove(file_name)
-        except Exception as e:
-            self._log.error('Failed to delete strategy file', exce_info=True)
-
-    def all_items(self) -> List[Strategy]:
-        strategies = {}
-        for f in self._path.glob('*.pckl'):
-            file_name = self._path / f
-            try:
-                with open(file_name, 'rb') as file_handler:
-                    s = pickle.load(file_handler)
-                    strategies[s.strategy_id] = s
-                self._log.debug(f'Loaded {f}')
-            except FileNotFoundError as e:
-                self._log.error('Failed to open strategy file', exc_info=True)
-        return strategies
-
-    def _file_name(self, item: Strategy) -> str:
-        return self._path / (item.strategy_id + '.pckl')
+    def delete_strategy(self, strategy: Strategy) -> None:
+        self._strategy_repository.delete(strategy)

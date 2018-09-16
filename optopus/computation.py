@@ -2,9 +2,11 @@
 from typing import Dict, List
 import pandas as pd
 import numpy as np
-from optopus.settings import (MARKET_BENCHMARK, STDEV_PERIOD, BETA_PERIOD, 
-                              CORRELATION_PERIOD, HISTORICAL_YEARS)
-from optopus.data_objects import Asset, AssetData
+from optopus.settings import (MARKET_BENCHMARK, STDEV_PERIOD, BETA_PERIOD,
+                              CORRELATION_PERIOD, HISTORICAL_YEARS,
+                              PRICE_PERIOD, IV_PERIOD)
+from optopus.data_objects import (Asset, AssetData, OwnershipType, 
+                                  PositionData, Strategy, Direction)
 
 # https://conceptosclaros.com/que-es-la-covarianza-y-como-se-calcula-estadistica-descriptiva/
 # http://gouthamanbalaraman.com/blog/calculating-stock-beta.html
@@ -65,13 +67,20 @@ def _IV_percentile(ad: AssetData, IV_value: float) -> float:
     return len(IV_values) / (HISTORICAL_YEARS * 252)
 
 
+def _price_percentile(ad: AssetData, value: float) -> float:
+    values = [b.bar_low for b in ad._historical_data if b.bar_low < value]
+    return len(values) / (HISTORICAL_YEARS * 252)
+
+
 def assets_loop_computation(ads: Dict[str, Asset]) -> None:
     for a in ads.values():
-        a.current.volume_h = a._historical_data[-1].bar_volume
-        a.current.IV_h = a._historical_IV_data[-1].bar_close
-        a.current.IV_rank_h = _IV_rank(a, a.current.IV_h)
-        a.current.IV_percentile_h = _IV_percentile(a, a.current.IV_h)
-        a.current.one_month_return = (a._historical_data[-1].bar_close - a._historical_data[-22].bar_close) / a._historical_data[-22].bar_close
+        a.current.volume = a._historical_data[-1].bar_volume
+        print(a.code, a._historical_IV_data[-1].bar_close, a._historical_IV_data[-1 * IV_PERIOD].bar_close)
+        a.current.IV_period = (a._historical_IV_data[-1].bar_close - a._historical_IV_data[-1 * IV_PERIOD].bar_close) / a._historical_IV_data[-1 * IV_PERIOD].bar_close
+        a.current.IV = a._historical_IV_data[-1].bar_close
+        a.current.IV_rank = _IV_rank(a, a.current.IV)
+        a.current.IV_percentile = _IV_percentile(a, a.current.IV)
+        a.current.price_percentile = _price_percentile(a, a.market_price)
 
 def assets_vector_computation(ads: Dict[str, Asset], close_values: Dict[str, List]) -> None:
     # Calculate beta
@@ -88,5 +97,45 @@ def assets_vector_computation(ads: Dict[str, Asset], close_values: Dict[str, Lis
         ads[code].current.stdev = value
 
 
+def assets_directional_assumption(ads: Dict[str, Asset], close_values: Dict[str, List]) -> None:
+    df = pd.DataFrame(data=close_values)
+    diff = (df.iloc[-1] - df.iloc[-1 * PRICE_PERIOD]) / df.iloc[-1 * PRICE_PERIOD]
+    for code, price_period in diff.iteritems():
+        ads[code].current.price_period = price_period
+        
+        if ads[code].current.price_percentile < 0.1:            
+            if price_period > 0.01:
+                ads[code].current.directional_assumption = Direction.Bullish
+            elif price_period < -0.5:
+                ads[code].current.directional_assumption = Direction.Bearish
+            else:
+                ads[code].current.directional_assumption = Direction.Neutral
+                
+        elif ads[code].current.price_percentile > 0.9:            
+            if price_period < 0.01:
+                ads[code].current.directional_assumption = Direction.Bearish
+            elif price_period > 0.5:
+                ads[code].current.directional_assumption = Direction.Bulish
+            else:
+                ads[code].current.directional_assumption = Direction.Neutral
+
+        else:
+            if price_period > 0.5:
+                ads[code].current.directional_assumption = Direction.Bullish
+            elif price_period < 0.5:
+                ads[code].current.directional_assumption = Direction.Bearish
+            else:
+                ads[code].current.directional_assumption = Direction.Neutral
 
 
+def portfolio_bwd(strategies: Dict[str, Strategy], benchmark_price: float) -> float:
+    if not len(strategies):
+        return None
+    total = 0
+    for strategy_key, strategy in strategies.items():
+        for leg_key, leg in strategy.legs.items():
+            underlying_price = leg.option.underlying_price
+            ownership = 1 if leg.ownership == OwnershipType.Buyer else -1
+            BWDelta = (underlying_price / benchmark_price) * leg.option.beta * leg.option.delta * leg.quantity * ownership
+            total += BWDelta
+    return total

@@ -1,11 +1,8 @@
 # -*- coding: utf-8 -*-
-from collections import OrderedDict
 import datetime
 from enum import Enum
 from typing import List
 from optopus.utils import nan, is_nan
-from optopus.currency import Currency
-from optopus.settings import CURRENCY
 
 
 class DataSource(Enum):
@@ -60,6 +57,15 @@ class OrderRol(Enum):
     StopLoss = 'SL'
 
 
+class Currency(Enum):
+    USDollar = 'USD'
+    Euro = 'EUR'
+
+class Direction(Enum):
+    Bullish = 'Bullish'
+    Neutral = 'Neutral'
+    Bearish = 'Bearish'
+
 class OrderStatus(Enum):
     APIPending = 'API pending'
     PendingSubmit = 'Pending submit'
@@ -76,12 +82,10 @@ class Asset():
     def __init__(self,
                  code: str,
                  asset_type: AssetType,
-                 data_source: DataSource = DataSource.IB,
-                 currency: Currency = CURRENCY) -> None:
+                 currency: Currency) -> None:
         self.code = code
         self.asset_type = asset_type
-        self.data_source = data_source
-        self.currency = CURRENCY
+        self.currency = currency
         self._data = None
         self._contract = None
         self._historical_data = None
@@ -169,15 +173,18 @@ class AssetData():
         self.last_size = last_size
         self.time = time
         self.volume = volume
-        self.IV_h = None
-        self.IV_rank_h = None
-        self.IV_percentile_h = None
-        self.volume_h = None
+        self.IV = None
+        self.IV_rank = None
+        self.IV_percentile = None
+        self.IV_period = None
+        self.volume = None
         self.stdev = None
         self.beta = None
-        self.one_month_return = None
         self.correlation = None
         self.midpoint = (self.bid + self.ask) / 2
+        self.price_period = None
+        self.directional_assumption = None
+        self.price_percentile = None
 
         # market_price is the first available one of:
         # - last price if within current bid/ask;
@@ -192,6 +199,9 @@ class AssetData():
         if is_nan(self.market_price) or self.market_price == -1:
             self.market_price = self.close
 
+    def __repr__(self):
+        return (f'{self.__class__.__name__}('
+                f'{self.__dict__})')
 
 class OptionData():
     def __init__(self,
@@ -318,7 +328,7 @@ class PositionData():
 
 class OrderData():
     def __init__(self,
-                 asset: Asset,
+                 code: str,
                  rol: OrderRol,
                  ownership: OwnershipType,
                  quantity: int,
@@ -330,7 +340,7 @@ class OrderData():
                  reference: str,
                  contract):
 
-        self.asset = asset
+        self.code = code
         self.rol = rol
         self.ownership = ownership
         self.quantity = quantity
@@ -371,7 +381,7 @@ class TradeData:
 
 class Leg:
     def __init__(self,
-                 asset: Asset,
+                 code: str,
                  ownership: OwnershipType,
                  right: RightType,
                  expiration: datetime.date,
@@ -383,7 +393,7 @@ class Leg:
                  take_profit_factor: float,
                  stop_loss_factor: float,
                  contract: object) -> None:
-        self.asset = asset
+        self.code = code
         self.ownership = ownership
         self.right = right
         self.expiration = expiration
@@ -401,41 +411,43 @@ class Leg:
         self.filled = None
         self.commission = None
         #self.orders = {}
-        self.leg_id = self.asset.code + ' ' + self.ownership.value + ' ' + self.right.value + ' ' + str(round(self.strike, 1)) + ' ' + self.expiration.strftime('%d-%m-%Y')
+        self.leg_id = self.code + ' ' + self.ownership.value + ' ' + self.right.value + ' ' + str(round(self.strike, 1)) + ' ' + self.expiration.strftime('%d-%m-%Y')
         self.option = None
 
     def __repr__(self):
         return(f'{self.__class__.__name__}('
-               f'{self.asset.code, self.ownership.value, self.right.value, self.strike, self.expiration, self.multiplier, self.currency, self.strategy_quantity})')
+               f'{self.code, self.ownership.value, self.right.value, self.strike, self.expiration, self.multiplier, self.currency, self.quantity})')
         
 
 class Strategy:
     def __init__(self,
-                 asset: Asset,
+                 code: str,
                  strategy_type: StrategyType,
                  legs: List[Leg]):
-        self.asset = asset
+        #self.asset = asset
+        self.code = code
         self.strategy_type = strategy_type
         self.legs = {}
         for leg in legs:
             self.legs[leg.leg_id] = leg
         self.created = datetime.datetime.now()
         self.updated = self.created
-        self.strategy_id = self.asset.code + ' ' + self.created.strftime('%d-%m-%Y %H:%M:%S')
+        self.opened = None
+        self.closed = None
+        self.strategy_id = self.code + ' ' + self.created.strftime('%d-%m-%Y %H:%M:%S')
 
     def __repr__(self):
         return(f'{self.__class__.__name__}('
-               f'{self.asset.code, self.strategy_type.value, self.created}'
+               f'{self.code, self.strategy_type.value, self.created}'
                f'\n{self.legs!r}')
 
 
 
-class AccountData:
-    """Class representing a broker account"""
+class Account:
+    """Class representing a account"""
 
     def __init__(self) -> None:
         self._id = None
-
         # The basis for determining the price of the assets in your account.
         # Total cash value + stock value + options value + bond value
         self.net_liquidation = None
@@ -470,3 +482,12 @@ class AccountData:
         # Special Memorandum Account: Line of credit created when the market 
         # value of securities in a Regulation T account increase in value
         self.SMA = None
+
+    def __repr__(self):
+        return (f'{self.__class__.__name__}('
+                f'{self.__dict__})')
+        
+class Portfolio:
+    """Class representing a porfolio"""
+    def __init__(self):
+        self.bwd = None

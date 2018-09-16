@@ -15,13 +15,12 @@ from ib_insync.contract import Index, Option, Stock
 from ib_insync.objects import (AccountValue, Position, Fill,
                                CommissionReport)
 from ib_insync.order import Trade, LimitOrder, StopOrder
-from optopus.money import Money
 from optopus.data_objects import (AssetType,
                                   Asset, AssetData, OptionData,
                                   RightType,
                                   OptionMoneyness, BarData,
                                   PositionData, OwnershipType,
-                                  AccountData,
+                                  Account,
                                   OrderStatus, OrderData,
                                   TradeData, StrategyType, Strategy)
 from optopus.data_manager import DataAdapter
@@ -78,6 +77,7 @@ class IBBrokerAdapter:
                             lmtPrice=parent_order.price,
                             orderRef=parent_order.order_id,
                             orderId=self._broker.client.getReqId(),
+                            tif='GTC',
                             transmit=False)
         self._broker.placeOrder(contract, parent)
 
@@ -86,6 +86,7 @@ class IBBrokerAdapter:
                                  lmtPrice=take_profit_order.price,
                                  orderRef=take_profit_order.order_id,
                                  orderId=self._broker.client.getReqId(),
+                                 tif='GTC',
                                  transmit=False,
                                  parentId=parent.orderId)
         self._broker.placeOrder(contract, take_profit)
@@ -95,6 +96,7 @@ class IBBrokerAdapter:
                               stopPrice=stop_loss_order.price,
                               orderRef=stop_loss_order.order_id,
                               orderId=self._broker.client.getReqId(),
+                              tif='GTC',
                               transmit=True,
                               parentId=parent.orderId)
         self._broker.placeOrder(contract, stop_loss)
@@ -136,34 +138,35 @@ class IBTranslator:
         
         self._strategy_translation = {'SNP': StrategyType.SellNakedPut}
 
-    def translate_account(self, values: List[AccountValue]) -> AccountData:
-        account = AccountData()
+    def translate_account(self, values: List[AccountValue]) -> Account:
+        account = Account()
         for v in values:
             if v.currency == CURRENCY.value:
                 if v.tag == 'AvailableFunds':
-                    account.funds = Money(v.value, CURRENCY)
+                    account.funds = v.value
                 elif v.tag == 'BuyingPower':
-                    account.buying_power = Money(v.value, CURRENCY)
+                    account.buying_power = v.value
                 elif v.tag == 'TotalCashValue':
-                    account.cash = Money(v.value, CURRENCY)
+                    account.cash = v.value
                 elif v.tag == 'DayTradesRemaining':
-                    account.max_day_trades = Money(v.value, CURRENCY)
+                    account.max_day_trades = v.value
                 elif v.tag == 'NetLiquidation':
-                    account.net_liquidation = Money(v.value, CURRENCY)
+                    account.net_liquidation = v.value
                 elif v.tag == 'InitMarginReq':
-                    account.initial_margin = Money(v.value, CURRENCY)
+                    account.initial_margin = v.value
                 elif v.tag == 'MaintMarginReq':
-                    account.maintenance_margin = Money(v.value, CURRENCY)
+                    account.maintenance_margin = v.value
                 elif v.tag == 'ExcessLiquidity':
-                    account.excess_liquidity = Money(v.value, CURRENCY)
+                    account.excess_liquidity = v.value
                 elif v.tag == 'Cushion':
-                    account.cushion = Money(v.value, CURRENCY)
+                    account.cushion = v.value
                 elif v.tag == 'GrossPositionValue':
-                    account.gross_position_value = Money(v.value, CURRENCY)
+                    account.gross_position_value = v.value
                 elif v.tag == 'EquityWithLoanValue':
-                    account.equity_with_loan = Money(v.value, CURRENCY)
+                    account.equity_with_loan = v.value
                 elif v.tag == 'SMA':
-                    account.SMA = Money(v.value, CURRENCY)
+                    account.SMA = v.value
+        return account
 
     def translate_position(self, item: Position) -> PositionData:
         code = item.contract.symbol
