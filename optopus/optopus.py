@@ -45,7 +45,14 @@ class Optopus():
 
         self._log.debug('Retrieving underling data')
         self._data_manager.initialize_assets()
-        self.update_assets()
+        self._data_manager.update_current_assets()
+        self._data_manager.update_strategy_options()
+        self._data_manager.check_strategy_positions()
+
+        self._data_manager.update_historical_assets()
+        self._data_manager.update_historical_IV_assets()
+        self._data_manager.compute()
+
 
         self._log.info('System started')
 
@@ -57,8 +64,13 @@ class Optopus():
 
     def loop(self) -> None:
         for t in self._broker._broker.timeRange(datetime.time(0, 0), datetime.datetime(2100, 1, 1, 0), 10):
-            self._data_manager.check_strategy_positions()
+            self._log.debug('Initiating loop iteration')
+            self._data_manager.update_current_assets()
             self._data_manager.update_strategy_options()
+            self._data_manager.check_strategy_positions()
+    
+            self._data_manager.compute()
+            
             for algorithm in self._algorithms:
                 algorithm()
             self._broker.sleep(SLEEP_LOOP)
@@ -84,14 +96,9 @@ class Optopus():
     def assets_matrix(self, field: str) -> dict:
         return self._data_manager.assets_matrix(field)
 
-    def update_assets(self):
-        self._data_manager.update_current_assets()
-        self._data_manager.update_historical_assets()
-        self._data_manager.update_historical_IV_assets()
-        self._data_manager.compute()
-
-    def option_chain(self, code: str) -> List[OptionData]:
-        return self._data_manager._assets[code]._option_chain
+    def option_chain(self, code: str, expiration: datetime.date) -> List[OptionData]:
+        return self._data_manager.option_chain(code, expiration)
+        #return self._data_manager._assets[code]._option_chain
     
     def register_algorithm(self, algo: Callable[[], None]) -> None:
         self._algorithms.append(algo)

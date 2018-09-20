@@ -30,5 +30,5 @@ WATCH_LIST = {'DIA': AssetType.Stock,
               'XOP': AssetType.Stock,
               'XRT': AssetType.Stock}
 
-#WATCH_LIST = {'SPY': AssetType.Stock,
-#              'EEM': AssetType.Stock}
+WATCH_LIST = {'SPY': AssetType.Stock,
+              'EEM': AssetType.Stock}

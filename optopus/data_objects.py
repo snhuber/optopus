@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 import datetime
 from enum import Enum
-from typing import List
+from typing import List, Dict
 from optopus.utils import nan, is_nan
 
 
@@ -25,7 +25,9 @@ class AssetType(Enum):
 
 
 class StrategyType(Enum):
-    SellNakedPut = 'SNP'
+    ShortPut = 'SP'
+    ShortPutVerticalSpread = 'SPVS'
+    ShortCallVerticalSpread = 'SCVS'
 
 
 class OrderType(Enum):
@@ -92,7 +94,7 @@ class Asset():
         self._historical_IV_data = None
         self._historical_updated = None
         self._historical_IV_updated = None
-        self._option_chain = None
+        #self._option_chain = None
 
     @property
     def current(self):
@@ -159,7 +161,8 @@ class AssetData():
                  last: float = nan,
                  last_size: float = nan,
                  volume: float = nan,
-                 time: datetime.datetime = None) -> None:
+                 time: datetime.datetime = None,
+                 contract: object = None) -> None:
         self.code = code
         self.asset_type = asset_type
         self.high = high
@@ -173,6 +176,7 @@ class AssetData():
         self.last_size = last_size
         self.time = time
         self.volume = volume
+        self.contract = contract
         self.IV = None
         self.IV_rank = None
         self.IV_percentile = None
@@ -203,7 +207,8 @@ class AssetData():
         return (f'{self.__class__.__name__}('
                 f'{self.__dict__})')
 
-class OptionData():
+
+class OptionData:
     def __init__(self,
                  code: str,
                  expiration: datetime.date,
@@ -219,6 +224,8 @@ class OptionData():
                  last: float = nan,
                  last_size: float = nan,
                  option_price: float = nan,
+                 currency: str = None,
+                 multiplier: int = 100,
                  volume: float = nan,
                  delta: float = nan,
                  gamma: float = nan,
@@ -227,10 +234,8 @@ class OptionData():
                  implied_volatility: float = nan,
                  underlying_price: float = nan,
                  underlying_dividends: float = nan,
-                 moneyness: float = nan,
-                 intrinsic_value: float = nan,
-                 extrinsic_value: float = nan,
-                 time: datetime.datetime = None)-> None:
+                 time: datetime.datetime = None,
+                 contract: object = None)-> None:
         self.code = code
         self.asset_type = AssetType.Option
         self.expiration = expiration
@@ -246,6 +251,8 @@ class OptionData():
         self.last = last
         self.last_size = last_size
         self.option_price = option_price
+        self.currency = currency
+        self.multiplier = multiplier
         self.volume = volume
         self.delta = delta
         self.gamma = gamma
@@ -254,10 +261,8 @@ class OptionData():
         self.implied_volatility = implied_volatility
         self.underlying_price = underlying_price
         self.underlying_dividends = underlying_dividends
-        self.moneyness = moneyness
-        self.intrinsic_value = intrinsic_value
-        self.extrinsic_value = extrinsic_value
         self.time = time
+        self.contract = contract
         self.DTE = (self.expiration - datetime.datetime.now().date()).days
 
 
@@ -326,40 +331,6 @@ class PositionData():
                 f'{self.__dict__})')
 
 
-class OrderData():
-    def __init__(self,
-                 code: str,
-                 rol: OrderRol,
-                 ownership: OwnershipType,
-                 quantity: int,
-                 price: float,
-                 order_type: OrderType,
-                 expiration: datetime.date,
-                 strike: float,
-                 right: RightType,
-                 reference: str,
-                 contract):
-
-        self.code = code
-        self.rol = rol
-        self.ownership = ownership
-        self.quantity = quantity
-        self.price = price
-        self.order_type = order_type
-
-        self.expiration = expiration
-        self.strike = strike
-        self.right = right
-        self.created = datetime.datetime.now()
-        self.updated = self.created
-        self.status = OrderStatus.APIPending
-
-        self.order_id = reference + '_' + self.rol.value + ' ' + self.created.strftime('%d-%m-%Y %H:%M:%S')
-        self.contract = contract
-
-    def __repr__(self):
-        return (f'{self.__class__.__name__}('
-                f'{self.__dict__})')
 
 
 # https://interactivebrokers.github.io/tws-api/order_submission.html
@@ -381,60 +352,69 @@ class TradeData:
 
 class Leg:
     def __init__(self,
-                 code: str,
+                 option: OptionData,
                  ownership: OwnershipType,
-                 right: RightType,
-                 expiration: datetime.date,
-                 strike: float,
-                 multiplier: int,
-                 strategy_price: float,
-                 ratio: int,
-                 currency: Currency,
-                 take_profit_factor: float,
-                 stop_loss_factor: float,
-                 contract: object) -> None:
-        self.code = code
+                 ratio: int) -> None:
+        self.option = option
         self.ownership = ownership
-        self.right = right
-        self.expiration = expiration
-        self.strike = strike
-        self.multiplier = multiplier
-        self.strategy_price = strategy_price
         self.ratio = ratio
-        self.order_price = None
-        self.quantity = None
-        self.currency = currency
-        self.contract = contract
-        self.take_profit_factor = take_profit_factor
-        self.stop_loss_factor = stop_loss_factor
         self.created = datetime.datetime.now()
         self.filled = None
         self.commission = None
-        #self.orders = {}
-        self.leg_id = self.code + ' ' + self.ownership.value + ' ' + self.right.value + ' ' + str(round(self.strike, 1)) + ' ' + self.expiration.strftime('%d-%m-%Y')
-        self.option = None
+        self.price = None
+        
+        self.leg_id = self.option.code + ' ' + self.ownership.value + ' ' + self.option.right.value + ' ' + str(round(self.option.strike, 1)) + ' ' + self.option.expiration.strftime('%d-%m-%Y')
+
 
     def __repr__(self):
         return(f'{self.__class__.__name__}('
-               f'{self.code, self.ownership.value, self.right.value, self.strike, self.expiration, self.multiplier, self.currency, self.quantity})')
+               f'{self.option.code, self.option.ownership.value, self.option.right.value, self.option.strike, self.option.expiration, self.option.multiplier, self.option.currency, self.option.quantity})')
         
 
 class Strategy:
     def __init__(self,
                  code: str,
                  strategy_type: StrategyType,
-                 legs: List[Leg]):
+                 ownership: OwnershipType,
+                 currency: Currency,
+                 take_profit_factor: float,
+                 stop_loss_factor: float,
+                 underlying_entry_price: float,
+                 multiplier: int,
+                 legs: Dict[str, Leg]):
         #self.asset = asset
         self.code = code
         self.strategy_type = strategy_type
-        self.legs = {}
-        for leg in legs:
-            self.legs[leg.leg_id] = leg
+        self.ownership = ownership
+        self.currency = currency
+        self.legs = legs
         self.created = datetime.datetime.now()
+        self.strategy_id = self.code + ' ' + self.created.strftime('%d-%m-%Y %H:%M:%S')
+        self.take_profit_factor = take_profit_factor
+        self.stop_loss_factor = stop_loss_factor
         self.updated = self.created
         self.opened = None
         self.closed = None
-        self.strategy_id = self.code + ' ' + self.created.strftime('%d-%m-%Y %H:%M:%S')
+        self.quantity = None
+        self.multiplier = multiplier
+        
+        self._underlying_entry_price = underlying_entry_price
+
+
+        self._spread_entry_price = None
+        self._spread_witdh = None
+        self._breakeven_price = None
+        self._maximum_profit = None
+        self._maximum_loss = None
+        self._POP = None
+        self._ROI = None
+
+        @property
+        def underlying_entry_price(self):
+            return self._underlying_entry_price
+
+
+
 
     def __repr__(self):
         return(f'{self.__class__.__name__}('

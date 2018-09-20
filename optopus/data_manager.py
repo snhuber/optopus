@@ -86,7 +86,8 @@ class DataManager():
         assets_vector_computation(self._assets, self.assets_matrix('bar_close'))
         #print({k: a.current.market_price for (k, a) in self._assets.items()})
         assets_directional_assumption(self._assets, self.assets_matrix('bar_close'))
-        self.portfolio.bwd = portfolio_bwd(self._da.get_positions(),
+        self.portfolio.bwd = portfolio_bwd(self.get_strategies(),
+                                           self._assets,
                                            self._assets[MARKET_BENCHMARK].market_price)
         
 
@@ -98,20 +99,21 @@ class DataManager():
             d[a.code] = [getattr(bd, field) for bd in a._historical_data]
         return d
 
-    def update_option_chain(self, code: str) -> None:
+    def option_chain(self, code: str, expiration: datetime.date) -> None:
         """Update option chain values
         """
         a = self._assets[code]
-        a._option_chain = self._da.get_optionchain(a)
+        return self._da.get_optionchain(a, expiration)
 
     def update_strategy_options(self) -> None:
         for strategy_key, strategy in self._strategies.items():
             for leg_key, leg in strategy.legs.items():
-                leg.option = self._da.get_options([leg.contract])[0]
-                self._log.debug(f'Updated contract {leg.contract}')
+                leg.option = self._da.get_options([leg.option.contract])[0]
+                self._log.debug(f'Updated contract {leg.option.contract}')
 
     def check_strategy_positions(self):
         positions = self._da.get_positions()
+        strategies_to_remove = []
         for strategy_key, strategy in self._strategies.items():
             strategy_positions = 0     
             for leg_key, leg in strategy.legs.items():
@@ -131,7 +133,7 @@ class DataManager():
                 except KeyError as e:
                     self._log.warning(f'Leg {leg.leg_id} doesn\'t have any position')       
 
-            if strategy_positions == sum([leg.quantity 
+            if strategy_positions == sum([leg.ratio * strategy.quantity
                                           for leg in strategy.legs.values()]) and not strategy.opened:
                 strategy.opened = datetime.datetime.now()
                 self.update_strategy(strategy)
@@ -141,29 +143,28 @@ class DataManager():
                 strategy.closed = datetime.datetime.now()
                 self.update_strategy(strategy)
                 self.delete_strategy(strategy)
+                strategies_to_remove.append(strategy.strategy_id)
                 self._log.info(f'Strategy {strategy_key} closed')
 
         if len(positions):
             self._log.warning(f'There are excess positions')
 
-        self._strategies = self._strategy_repository.all_items()
+        for s in strategies_to_remove:
+            del self._strategies[s]
+        #self._strategies = self._strategy_repository.all_items()
 
     def get_strategy(self, strategy_id: str) -> Strategy:
-        return copy.deepcopy(self._strategies[strategy_id])
+        return self._strategies[strategy_id]
 
     def get_strategies(self) -> Dict[str, Strategy]:
-        strategies={}
-        for k, s in self._strategies.items():
-            strategies[k] = self.get_strategy(k)
-        return strategies
+        return self._strategies
 
     def add_strategy(self, strategy: Strategy) -> None:
         self._strategy_repository.add(strategy)
-        self._strategies[strategy.strategy_id] = copy.deepcopy(strategy)
+        self._strategies[strategy.strategy_id] = strategy
 
     def update_strategy(self, strategy: Strategy) -> None:
         self._strategy_repository.update(strategy)
-        self._strategies[strategy.strategy_id] = copy.deepcopy(strategy)
         self._strategies[strategy.strategy_id].updated = datetime.datetime.now()
 
     def delete_strategy(self, strategy: Strategy) -> None:

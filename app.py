@@ -9,7 +9,7 @@ from ib_insync.ib import IB
 from optopus.ib_adapter import IBBrokerAdapter
 from optopus.optopus import Optopus
 from optopus.utils import to_df, notify
-from optopus.taco import Taco
+from optopus.taco import Taco, BullPutSpreadAlgo
 
 host = '127.0.0.1'
 # port = 4002  # gateway
@@ -20,10 +20,11 @@ client = 10
 ib = IB()
 opt = Optopus(IBBrokerAdapter(ib, host, port, client))
 
-notify('strategy_opened', 'FXI', 'cara', 'cola')
+#notify('strategy_opened', 'FXI', 'cara', 'cola')
 
-algo = Taco(opt)
-opt.register_algorithm(algo.produce_signal)
+#algo = Taco(opt)
+algo = BullPutSpreadAlgo(opt)
+opt.register_algorithm(algo.calculate_signal)
 
 opt.start()
 #print(opt.strategies())
@@ -32,7 +33,7 @@ opt.start()
 #print(df)
 
 
-#opt.loop()
+opt.loop()
 
 
 

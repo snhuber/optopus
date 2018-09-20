@@ -75,7 +75,6 @@ def _price_percentile(ad: AssetData, value: float) -> float:
 def assets_loop_computation(ads: Dict[str, Asset]) -> None:
     for a in ads.values():
         a.current.volume = a._historical_data[-1].bar_volume
-        print(a.code, a._historical_IV_data[-1].bar_close, a._historical_IV_data[-1 * IV_PERIOD].bar_close)
         a.current.IV_period = (a._historical_IV_data[-1].bar_close - a._historical_IV_data[-1 * IV_PERIOD].bar_close) / a._historical_IV_data[-1 * IV_PERIOD].bar_close
         a.current.IV = a._historical_IV_data[-1].bar_close
         a.current.IV_rank = _IV_rank(a, a.current.IV)
@@ -92,8 +91,8 @@ def assets_vector_computation(ads: Dict[str, Asset], close_values: Dict[str, Lis
     for code, value in correlation.items():
         ads[code].current.correlation = value
     # Calculate standard desviation
-    correlation = calc_stdev(close_values)
-    for code, value in correlation.items():
+    stdev = calc_stdev(close_values)
+    for code, value in stdev.items():
         ads[code].current.stdev = value
 
 
@@ -128,7 +127,7 @@ def assets_directional_assumption(ads: Dict[str, Asset], close_values: Dict[str,
                 ads[code].current.directional_assumption = Direction.Neutral
 
 
-def portfolio_bwd(strategies: Dict[str, Strategy], benchmark_price: float) -> float:
+def portfolio_bwd(strategies: Dict[str, Strategy], ads: Dict[str, Asset], benchmark_price: float) -> float:
     if not len(strategies):
         return None
     total = 0
@@ -136,6 +135,6 @@ def portfolio_bwd(strategies: Dict[str, Strategy], benchmark_price: float) -> fl
         for leg_key, leg in strategy.legs.items():
             underlying_price = leg.option.underlying_price
             ownership = 1 if leg.ownership == OwnershipType.Buyer else -1
-            BWDelta = (underlying_price / benchmark_price) * leg.option.beta * leg.option.delta * leg.quantity * ownership
+            BWDelta = (underlying_price / benchmark_price) * ads[leg.option.code].current.beta * leg.option.delta * strategy.quantity * leg.ratio * ownership
             total += BWDelta
     return total
