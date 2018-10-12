@@ -12,6 +12,7 @@ WATCH_LIST = {'DIA': AssetType.Stock,
               'GDXJ': AssetType.Stock,
               'GLD': AssetType.Stock,
               'IWM': AssetType.Stock,
+              'IYR': AssetType.Stock,
               'KRE': AssetType.Stock,
               'OIH': AssetType.Stock,
               # 'QQQ': AssetType.Stock,
@@ -31,4 +32,7 @@ WATCH_LIST = {'DIA': AssetType.Stock,
               'XRT': AssetType.Stock}
 
 WATCH_LIST = {'SPY': AssetType.Stock,
-              'EEM': AssetType.Stock}
+              'EWZ': AssetType.Stock,
+              'GDX': AssetType.Stock,
+              'GDXJ': AssetType.Stock,
+              'FXI': AssetType.Stock}

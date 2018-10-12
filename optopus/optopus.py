@@ -12,9 +12,10 @@ import logging
 from optopus.data_manager import DataManager
 from optopus.order_manager import OrderManager
 from optopus.watch_list import WATCH_LIST
-from optopus.data_objects import (AssetData, OptionData,
+from optopus.data_objects import (Asset, OptionData,
                                   Strategy, Account, Portfolio)
-from optopus.settings import SLEEP_LOOP
+from optopus.settings import (SLEEP_LOOP, EXPIRATIONS, PRESERVED_CASH_FACTOR,
+                              MAXIMUM_RISK_FACTOR)
 
 
 class Optopus():
@@ -45,7 +46,7 @@ class Optopus():
 
         self._log.debug('Retrieving underling data')
         self._data_manager.initialize_assets()
-        self._data_manager.update_current_assets()
+        self._data_manager.update_assets()
         self._data_manager.update_strategy_options()
         self._data_manager.check_strategy_positions()
 
@@ -56,6 +57,23 @@ class Optopus():
 
         self._log.info('System started')
 
+    @property
+    def account(self) -> Account:
+        return self._data_manager.account
+    
+    @property
+    def portfolio(self) -> Portfolio:
+        return self._data_manager.portfolio
+    
+    @property
+    def assets(self) -> Dict[str, Asset]:
+        return self._data_manager.assets
+
+    @property
+    def strategies(self) -> Dict[str, Strategy]:
+        return self._data_manager.strategies
+
+
     def stop(self) -> None:
         self._broker.disconnect()
 
@@ -63,9 +81,10 @@ class Optopus():
         self._broker.sleep(time)
 
     def loop(self) -> None:
+        
         for t in self._broker._broker.timeRange(datetime.time(0, 0), datetime.datetime(2100, 1, 1, 0), 10):
             self._log.debug('Initiating loop iteration')
-            self._data_manager.update_current_assets()
+            self._data_manager.update_assets()
             self._data_manager.update_strategy_options()
             self._data_manager.check_strategy_positions()
     
@@ -74,24 +93,13 @@ class Optopus():
             for algorithm in self._algorithms:
                 algorithm()
             self._broker.sleep(SLEEP_LOOP)
-    
-    def account(self) -> Account:
-        return self._data_manager.account
-    
-    def portfolio(self) -> Portfolio:
-        return self._data_manager.portfolio
-    
-    def strategies(self) -> Dict[str, Strategy]:
-        return self._data_manager.get_strategies()
-    
-    def assets(self) -> List[AssetData]:
-        return [a.current for a in self._data_manager._assets.values()]
+
 
     def asset_historical(self, code: str) -> List[OrderedDict]:
-        return self._data_manager._assets[code]._historical_data
+        return self._data_manager.assets[code]._historical_data
 
     def asset_historical_IV(self, code: str) -> List[OrderedDict]:
-        return self._data_manager._assets[code]._historical_IV_data
+        return self._data_manager.assets[code]._historical_IV_data
 
     def assets_matrix(self, field: str) -> dict:
         return self._data_manager.assets_matrix(field)
@@ -105,4 +113,21 @@ class Optopus():
     
     def new_strategy(self, strategy: Strategy) -> None:
         self._data_manager.add_strategy(strategy)
-        self._order_manager.execute_new_strategy(strategy)
+        self._order_manager.new_strategy(strategy)
+        
+    def expiration_target(self) -> datetime.date:
+        for expiration in EXPIRATIONS:
+            DTE = (expiration - datetime.datetime.now().date()).days
+            if DTE >= 30 and DTE <= 60:
+                return expiration
+        
+    def maximum_risk_per_trade(self) -> float:
+        account = self.account
+        preserved_cash = account.net_liquidation * PRESERVED_CASH_FACTOR
+        available_cash = account.cash - preserved_cash
+
+        maximum_risk = account.net_liquidation * MAXIMUM_RISK_FACTOR
+
+        return min(maximum_risk, available_cash)
+        
+        

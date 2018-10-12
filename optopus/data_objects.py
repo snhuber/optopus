@@ -49,8 +49,8 @@ class OptionMoneyness(Enum):
 
 
 class OwnershipType(Enum):
-    Buyer = 'BUY'
-    Seller = 'SELL'
+    Buyer = 1
+    Seller = -1
 
 
 class OrderRol(Enum):
@@ -88,21 +88,52 @@ class Asset():
         self.code = code
         self.asset_type = asset_type
         self.currency = currency
-        self._data = None
+
+        self.high = None
+        self.low = None
+        self.close = None
+        self.bid = None
+        self.bid_size = None
+        self.ask = None
+        self.ask_size = None
+        self.last = None
+        self.last_size = None
+        self.time = None
+        self.volume = None
+        self.contract = None
+        self.IV = None
+        self.IV_rank = None
+        self.IV_percentile = None
+        self.IV_period = None
+        self.volume = None
+        self.stdev = None
+        self.beta = None
+        self.correlation = None
+        self.price_period = None
+        self.directional_assumption = None
+        self.price_percentile = None
         self._contract = None
         self._historical_data = None
         self._historical_IV_data = None
         self._historical_updated = None
         self._historical_IV_updated = None
-        #self._option_chain = None
 
     @property
-    def current(self):
-        return self._data
+    def midpoint(self):
+        return (self.bid + self.ask) / 2
 
-    @current.setter
-    def current(self, values):
-        self._data = values
+    @property
+    def market_price(self):
+        market_price = nan
+        if (is_nan(self.midpoint) or self.bid <= self.last <= self.ask):
+            market_price = self.last
+
+        if is_nan(market_price):
+            market_price = self.midpoint
+        if is_nan(market_price) or market_price == -1:
+            market_price = self.close
+
+        return market_price
 
     @property
     def historical(self):
@@ -121,10 +152,6 @@ class Asset():
     def historical_IV(self, values):
         self._historical_IV_data = values
         self._historical_data_updated = datetime.datetime.now()
-
-    @property
-    def market_price(self):
-        return self._data.market_price
 
     def historical_is_updated(self) -> bool:
         if self._historical_updated:
@@ -145,67 +172,6 @@ class Asset():
                 return False
         else:
             return False
-
-
-class AssetData():
-    def __init__(self,
-                 code: str,
-                 asset_type: AssetType,
-                 high: float = nan,
-                 low: float = nan,
-                 close: float = nan,
-                 bid: float = nan,
-                 bid_size: float = nan,
-                 ask: float = nan,
-                 ask_size: float = nan,
-                 last: float = nan,
-                 last_size: float = nan,
-                 volume: float = nan,
-                 time: datetime.datetime = None,
-                 contract: object = None) -> None:
-        self.code = code
-        self.asset_type = asset_type
-        self.high = high
-        self.low = low
-        self.close = close
-        self.bid = bid
-        self.bid_size = bid_size
-        self.ask = ask
-        self.ask_size = ask_size
-        self.last = last
-        self.last_size = last_size
-        self.time = time
-        self.volume = volume
-        self.contract = contract
-        self.IV = None
-        self.IV_rank = None
-        self.IV_percentile = None
-        self.IV_period = None
-        self.volume = None
-        self.stdev = None
-        self.beta = None
-        self.correlation = None
-        self.midpoint = (self.bid + self.ask) / 2
-        self.price_period = None
-        self.directional_assumption = None
-        self.price_percentile = None
-
-        # market_price is the first available one of:
-        # - last price if within current bid/ask;
-        # - average of bid and ask (midpoint);
-        # - close price.
-        self.market_price = nan
-        if (is_nan(self.midpoint) or self.bid <= self.last <= self.ask):
-            self.market_price = self.last
-
-        if is_nan(self.market_price):
-            self.market_price = self.midpoint
-        if is_nan(self.market_price) or self.market_price == -1:
-            self.market_price = self.close
-
-    def __repr__(self):
-        return (f'{self.__class__.__name__}('
-                f'{self.__dict__})')
 
 
 class OptionData:
@@ -265,6 +231,10 @@ class OptionData:
         self.contract = contract
         self.DTE = (self.expiration - datetime.datetime.now().date()).days
 
+    @property
+    def midpoint(self):
+        return (self.bid + self.ask) / 2
+
 
 class BarDataType(Enum):
     Trades = 'TRADES'
@@ -311,7 +281,7 @@ class PositionData():
         self.strike = strike
         self.right = right
         self.quantity = quantity
-        self.position_id = self.code + ' ' + self.ownership.value + ' ' + self.right.value + ' ' + str(round(self.strike, 1)) + ' ' + self.expiration.strftime('%d-%m-%Y')
+        self.position_id = self.code + ' ' + str(self.ownership.value) + ' ' + self.right.value + ' ' + str(round(self.strike, 1)) + ' ' + self.expiration.strftime('%d-%m-%Y')
         
         self.average_cost = average_cost
         #self.trades = []
@@ -361,15 +331,18 @@ class Leg:
         self.created = datetime.datetime.now()
         self.filled = None
         self.commission = None
-        self.price = None
         
-        self.leg_id = self.option.code + ' ' + self.ownership.value + ' ' + self.option.right.value + ' ' + str(round(self.option.strike, 1)) + ' ' + self.option.expiration.strftime('%d-%m-%Y')
+        self.leg_id = self.option.code + ' ' + str(self.ownership.value) + ' ' + self.option.right.value + ' ' + str(round(self.option.strike, 1)) + ' ' + self.option.expiration.strftime('%d-%m-%Y')
 
+    @property
+    def price(self):
+        return (self.option.bid + self.option.ask) / 2
 
     def __repr__(self):
         return(f'{self.__class__.__name__}('
                f'{self.option.code, self.option.ownership.value, self.option.right.value, self.option.strike, self.option.expiration, self.option.multiplier, self.option.currency, self.option.quantity})')
         
+    
 
 class Strategy:
     def __init__(self,
@@ -378,48 +351,120 @@ class Strategy:
                  ownership: OwnershipType,
                  currency: Currency,
                  take_profit_factor: float,
-                 stop_loss_factor: float,
                  underlying_entry_price: float,
                  multiplier: int,
                  legs: Dict[str, Leg]):
         #self.asset = asset
-        self.code = code
-        self.strategy_type = strategy_type
-        self.ownership = ownership
-        self.currency = currency
-        self.legs = legs
-        self.created = datetime.datetime.now()
-        self.strategy_id = self.code + ' ' + self.created.strftime('%d-%m-%Y %H:%M:%S')
-        self.take_profit_factor = take_profit_factor
-        self.stop_loss_factor = stop_loss_factor
-        self.updated = self.created
-        self.opened = None
-        self.closed = None
-        self.quantity = None
-        self.multiplier = multiplier
-        
+        self._code = code
+        self._strategy_type = strategy_type
+        self._ownership = ownership
+        self._currency = currency
+        self._legs = legs
+        self._created = datetime.datetime.now()
+        self._strategy_id = self._code + ' ' + self._created.strftime('%d-%m-%Y %H:%M:%S')
         self._underlying_entry_price = underlying_entry_price
+        self._entry_price = None
+        self._take_profit_factor = take_profit_factor      
+        #self._take_profit_price = None
+        self._opened = None
+        self._closed = None
+        self._quantity = None
+        self._multiplier = multiplier
+        
+        #self._spread_witdh = None
+        #self._breakeven_price = None
+        #self._maximum_profit = None
+        #self._maximum_loss = None
+        #self._POP = None
+        #self._ROI = None
 
+    @property
+    def code(self):
+        return self._code
+    
+    @property
+    def strategy_type(self):
+        return self._strategy_type
+    
+    @property
+    def ownership(self):
+        return self._ownership
+    
+    @property
+    def currency(self):
+        return self._currency
 
-        self._spread_entry_price = None
-        self._spread_witdh = None
-        self._breakeven_price = None
-        self._maximum_profit = None
-        self._maximum_loss = None
-        self._POP = None
-        self._ROI = None
+    @property
+    def legs(self):
+        return self._legs
+    
+    @property
+    def strategy_id(self):
+        return self._strategy_id
 
-        @property
-        def underlying_entry_price(self):
-            return self._underlying_entry_price
+    @property
+    def underlying_entry_price(self):
+        return self._underlying_entry_price
 
+    @property
+    def entry_price(self):
+        return self._entry_price
+    
+    @entry_price.setter
+    def entry_price(self, value):
+        self._entry_price = value
+    
+    @property
+    def take_profit_price(self):
+        return self._take_profit_price
+    
+    @take_profit_price.setter
+    def take_profit_price(self, value):
+        self._take_profit_price = value
 
+    @property
+    def created(self):
+        return self._created
+
+    @property
+    def opened(self):
+        return self._opened
+
+    @opened.setter
+    def opened(self, value):
+        self._opened = value
+
+    @property
+    def closed(self):
+        return self._closed
+
+    @opened.setter
+    def closed(self, value):
+        self._closed = value
+
+    @property
+    def quantity(self):
+        return self._quantity
+
+    @quantity.setter
+    def quantity(self, value):
+        self._quantity = value
+
+    @property
+    def multiplier(self):
+        return self._multiplier
+
+    
+    @property
+    def strategy_id(self):
+        return self._strategy_id
 
 
     def __repr__(self):
         return(f'{self.__class__.__name__}('
                f'{self.code, self.strategy_type.value, self.created}'
                f'\n{self.legs!r}')
+
 
 
 

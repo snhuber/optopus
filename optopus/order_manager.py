@@ -3,6 +3,7 @@ import logging
 from optopus.data_objects import (OrderType, Strategy, OrderRol,
                                   OrderStatus)
 from optopus.data_manager import DataManager
+from optopus.utils import notify
 
 
 class OrderManager():
@@ -17,21 +18,18 @@ class OrderManager():
       
         self._log.debug(f'Order status changed {trade.order_id} : {trade.status.value}')
 
-    def execute_new_strategy(self, strategy: Strategy) -> None:
-        
+    def new_strategy(self, strategy: Strategy) -> None:
+        #self._price_strategy(strategy)
         self._size_strategy(strategy)
-        self._price_strategy(strategy)
-        strategy.calculate_measures()
-        
-
-
         self._data_manager.update_strategy(strategy)
-        self._broker.place_orders(strategy)
+        print(str(strategy))
+        self._broker.open_strategy(strategy)
+        
 
     def _size_strategy(self, strategy: Strategy) -> None:
         strategy.quantity = 1
 
-    def _price_strategy(self, strategy: Strategy) -> None:
-        for leg in strategy.legs.values():
-            print(leg.option)
-            leg.price =  (leg.option.bid + leg.option.ask) / 2
+    #def _price_strategy(self, strategy: Strategy) -> None:
+    #    for leg in strategy.legs.values():
+    #        leg.price =  (leg.option.bid + leg.option.ask) / 2
+    #        print(leg.option.strike, leg.option.option_price, leg.option.bid, leg.option.ask, leg.price)

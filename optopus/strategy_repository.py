@@ -2,7 +2,6 @@
 import logging
 import os
 from pathlib import Path
-import pickle
 from typing import List
 from optopus.settings import (DATA_DIR, STRATEGY_DIR)
 from optopus.strategy import Strategy

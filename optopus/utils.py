@@ -11,9 +11,13 @@ def to_df(items: List[object]) -> DataFrame:
     rows = []
     for i in items:
         d = OrderedDict()
-        for attr, value in vars(i).items():
+        for attr in dir(i):
+            #print(vars(i))
+            #print(dir(i))
+            value = getattr(i, attr)
             if not any([isinstance(value, list),
-                        isinstance(value, dict)]):
+                        isinstance(value, dict),
+                        attr[0:2] == '__']):
                 d[attr] = value.value if isinstance(value, Enum) else value
         rows.append(d)
     return pd.DataFrame(rows)

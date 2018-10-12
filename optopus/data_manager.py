@@ -34,7 +34,7 @@ class DataManager():
     """
     def __init__(self,  data_adapter: DataAdapter, watch_list: dict) -> None:
         self._da = data_adapter
-        self.account = None
+        self._account = None
         self.portfolio = Portfolio()
         self._assets = {code: Asset(code, asset_type, CURRENCY)
                         for code, asset_type in watch_list.items()}
@@ -45,6 +45,22 @@ class DataManager():
         self._strategies = self._strategy_repository.all_items()
 
         self._log = logging.getLogger(__name__)
+    
+    @property    
+    def assets(self):
+        return self._assets
+    
+    @property
+    def strategies(self):
+        return self._strategies
+    
+    @property
+    def account(self):
+        return self._account
+    
+    @account.setter
+    def account(self, values):
+        self._account = values
 
     def update_account(self) -> None:
         self.account = self._da.get_account_values()
@@ -52,16 +68,12 @@ class DataManager():
     def initialize_assets(self) -> None:
         """Retrieves the ids of the assets (contracts) from IB
         """
-        contracts = self._da.initialize_assets(self._assets.values())
-        for i in contracts:
-                self._assets[i].contract = contracts[i]
-
-    def update_current_assets(self) -> None:
+        self._da.initialize_assets(self.assets)
+        
+    def update_assets(self) -> None:
         """Updates the current asset values.
         """
-        ads = self._da.get_assets(self._assets.values())
-        for ad in ads:
-            self._assets[ad.code].current = ad
+        self._da.update_assets(self.assets)
 
     def update_historical_assets(self) -> None:
         """Updates historical assets values
@@ -86,10 +98,9 @@ class DataManager():
         assets_vector_computation(self._assets, self.assets_matrix('bar_close'))
         #print({k: a.current.market_price for (k, a) in self._assets.items()})
         assets_directional_assumption(self._assets, self.assets_matrix('bar_close'))
-        self.portfolio.bwd = portfolio_bwd(self.get_strategies(),
+        self.portfolio.bwd = portfolio_bwd(self.strategies,
                                            self._assets,
                                            self._assets[MARKET_BENCHMARK].market_price)
-        
 
     def assets_matrix(self, field: str) -> dict:
         """Returns a attribute from historical for every asset
@@ -119,10 +130,11 @@ class DataManager():
             for leg_key, leg in strategy.legs.items():
                 try:
                     position = positions[leg.leg_id]
+                    quantity = strategy.quantity * leg.ratio
                     if position.ownership == leg.ownership:
-                        if position.quantity >= leg.quantity:
-                            position.quantity -= leg.quantity
-                            strategy_positions += leg.quantity
+                        if position.quantity >= quantity:
+                            position.quantity -= quantity
+                            strategy_positions += quantity
                             if not position.quantity:
                                 del positions[position.position_id]
                         else:
@@ -153,19 +165,17 @@ class DataManager():
             del self._strategies[s]
         #self._strategies = self._strategy_repository.all_items()
 
-    def get_strategy(self, strategy_id: str) -> Strategy:
-        return self._strategies[strategy_id]
+    #def get_strategy(self, strategy_id: str) -> Strategy:
+    #    return self._strategies[strategy_id]
 
-    def get_strategies(self) -> Dict[str, Strategy]:
-        return self._strategies
 
     def add_strategy(self, strategy: Strategy) -> None:
         self._strategy_repository.add(strategy)
         self._strategies[strategy.strategy_id] = strategy
 
     def update_strategy(self, strategy: Strategy) -> None:
-        self._strategy_repository.update(strategy)
         self._strategies[strategy.strategy_id].updated = datetime.datetime.now()
+        self._strategy_repository.update(strategy)
 
     def delete_strategy(self, strategy: Strategy) -> None:
         self._strategy_repository.delete(strategy)
