@@ -12,8 +12,8 @@ from optopus.utils import to_df, notify
 from optopus.taco import Taco
 #import logging
 host = '127.0.0.1'
-# port = 4002  # gateway
-port = 7497  # TWS PAPER TRADING
+port = 4002  # gateway
+#port = 7497  # TWS PAPER TRADING
 #port = 7496 # TWS LIVE TRADING
 client = 10
 
