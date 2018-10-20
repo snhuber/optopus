@@ -1,7 +1,8 @@
 # -*- coding: utf-8 -*-
 import datetime
+from dataclasses import dataclass, field
 from enum import Enum
-from typing import List, Dict
+from typing import List, Dict, Any
 from optopus.utils import nan, is_nan
 
 
@@ -80,43 +81,19 @@ class OrderStatus(Enum):
     Inactive = 'Inactive'
 
 
-class Asset():
-    def __init__(self,
-                 code: str,
-                 asset_type: AssetType,
-                 currency: Currency) -> None:
-        self.code = code
-        self.asset_type = asset_type
-        self.currency = currency
-
-        self.high = None
-        self.low = None
-        self.close = None
-        self.bid = None
-        self.bid_size = None
-        self.ask = None
-        self.ask_size = None
-        self.last = None
-        self.last_size = None
-        self.time = None
-        self.volume = None
-        self.contract = None
-        self.IV = None
-        self.IV_rank = None
-        self.IV_percentile = None
-        self.IV_period = None
-        self.volume = None
-        self.stdev = None
-        self.beta = None
-        self.correlation = None
-        self.price_period = None
-        self.directional_assumption = None
-        self.price_percentile = None
-        self._contract = None
-        self._historical_data = None
-        self._historical_IV_data = None
-        self._historical_updated = None
-        self._historical_IV_updated = None
+@dataclass(frozen=True)
+class Current:
+    high: float = None
+    low: float = None
+    close: float = None
+    bid: float = None
+    bid_size: float = None
+    ask: float = None
+    ask_size: float = None
+    last: float = None
+    last_size: float = None
+    time: float = None
+    volume: float = None
 
     @property
     def midpoint(self):
@@ -124,54 +101,56 @@ class Asset():
 
     @property
     def market_price(self):
-        market_price = nan
-        if (is_nan(self.midpoint) or self.bid <= self.last <= self.ask):
-            market_price = self.last
+        mp = None
+        if (not self.midpoint or self.bid <= self.last <= self.ask):
+            mp = self.last
+        if not mp:
+            mp = self.midpoint
+        if not mp or mp == -1:
+            mp = self.close
+        return mp
 
-        if is_nan(market_price):
-            market_price = self.midpoint
-        if is_nan(market_price) or market_price == -1:
-            market_price = self.close
+@dataclass(frozen=True)
+class Bar():
+    #self.code = code
+    time: datetime.date
+    open: float
+    high: float
+    low: float
+    close: float
+    average: float
+    volume: float
+    count: int
 
-        return market_price
+@dataclass(frozen=True)
+class History:
+    values: List[Bar]
+    created: datetime.datetime = datetime.datetime.now()
 
-    @property
-    def historical(self):
-        return self._historical_data
+@dataclass
+class Measures:
+    iv: float = None
+    iv_rank: float = None
+    iv_percentile: float = None
+    iv_period: float = None
+    stdev: float = None
+    beta: float = None
+    correlation: float = None
+    price_percentile: float = None
+    price_period: float = None
+    directional_assumption: Direction = None
 
-    @historical.setter
-    def historical(self, values):
-        self._historical_data = values
-        self._historical_data_updated = datetime.datetime.now()
+@dataclass
+class Asset: 
+    code: str
+    asset_type: AssetType
+    currency: Currency
+    contract: Any = None
 
-    @property
-    def historical_IV(self):
-        return self._historical_IV_data
-
-    @historical_IV.setter
-    def historical_IV(self, values):
-        self._historical_IV_data = values
-        self._historical_data_updated = datetime.datetime.now()
-
-    def historical_is_updated(self) -> bool:
-        if self._historical_updated:
-            delta = datetime.datetime.now() - self._historical_updated
-            if delta.days:
-                return True
-            else:
-                return False
-        else:
-            return False
-
-    def historical_IV_is_updated(self) -> bool:
-        if self._historical_IV_updated:
-            delta = datetime.datetime.now() - self._historical_IV_updated
-            if delta.days:
-                return True
-            else:
-                return False
-        else:
-            return False
+    current: Current = None
+    price_history: History = None
+    iv_history: History = None
+    measures: Measures = Measures()
 
 
 class OptionData:
@@ -234,33 +213,6 @@ class OptionData:
     @property
     def midpoint(self):
         return (self.bid + self.ask) / 2
-
-
-class BarDataType(Enum):
-    Trades = 'TRADES'
-    IV = 'IMPLIED_VOLATILITY'
-
-
-class BarData():
-    def __init__(self,
-                 code: str,
-                 bar_time: float = nan,
-                 bar_open: float = nan,
-                 bar_high: float = nan,
-                 bar_low: float = nan,
-                 bar_close: float = nan,
-                 bar_average: float = nan,
-                 bar_volume: float = nan,
-                 bar_count: float = nan) -> None:
-        self.code = code
-        self.bar_time = bar_time
-        self.bar_open = bar_open
-        self.bar_high = bar_high
-        self.bar_low = bar_low
-        self.bar_close = bar_close
-        self.bar_average = bar_average
-        self.bar_volume = bar_volume
-        self.bar_count = bar_count
 
 
 class PositionData():
@@ -438,7 +390,7 @@ class Strategy:
     def closed(self):
         return self._closed
 
-    @opened.setter
+    @closed.setter
     def closed(self, value):
         self._closed = value
 
@@ -453,12 +405,6 @@ class Strategy:
     @property
     def multiplier(self):
         return self._multiplier
-
-    
-    @property
-    def strategy_id(self):
-        return self._strategy_id
-
 
     def __repr__(self):
         return(f'{self.__class__.__name__}('

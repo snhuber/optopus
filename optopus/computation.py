@@ -54,77 +54,77 @@ def calc_stdev(values: dict) -> dict:
         d[names[i]] = stdev[i]
     return d
 
-def _IV_rank(asset: Asset, IV_value: float) -> float:
-    min_IV_values = [b.bar_low for b in asset.historical_IV]
-    max_IV_values = [b.bar_high for b in asset.historical_IV]
-    IV_min = min(min_IV_values)
-    IV_max = max(max_IV_values)
-    IV_rank = (IV_value - IV_min) / (IV_max - IV_min)
-    return IV_rank
+def _iv_rank(asset: Asset, iv_value: float) -> float:
+    min_iv_values = [b.low for b in asset.iv_history.values]
+    max_iv_values = [b.high for b in asset.iv_history.values]
+    iv_min = min(min_iv_values)
+    iv_max = max(max_iv_values)
+    iv_rank = (iv_value - iv_min) / (iv_max - iv_min)
+    return iv_rank
 
-def _IV_percentile(asset: Asset, IV_value: float) -> float:
-    IV_values = [b.bar_low for b in asset.historical_IV if b.bar_low < IV_value]
-    return len(IV_values) / (HISTORICAL_YEARS * 252)
+def _iv_percentile(asset: Asset, iv_value: float) -> float:
+    iv_values = [b.low for b in asset.iv_history.values if b.low < iv_value]
+    return len(iv_values) / (HISTORICAL_YEARS * 252)
 
 
 def _price_percentile(asset: Asset, value: float) -> float:
-    values = [b.bar_low for b in asset._historical_data if b.bar_low < value]
+    values = [b.low for b in asset.price_history.values if b.low < value]
     return len(values) / (HISTORICAL_YEARS * 252)
 
 
 def assets_loop_computation(assets: Dict[str, Asset]) -> None:
     for a in assets.values():
-        a.volume = a._historical_data[-1].bar_volume
-        a.IV_period = (a._historical_IV_data[-1].bar_close - a._historical_IV_data[-1 * IV_PERIOD].bar_close) / a._historical_IV_data[-1 * IV_PERIOD].bar_close
-        a.IV = a._historical_IV_data[-1].bar_close
-        a.IV_rank = _IV_rank(a, a.IV)
-        a.IV_percentile = _IV_percentile(a, a.IV)
-        a.price_percentile = _price_percentile(a, a.market_price)
+        a.measures.volume = a.price_history.values[-1].volume
+        a.measures.iv_period = (a.iv_history.values[-1].close - a.iv_history.values[-1 * IV_PERIOD].close) / a.iv_history.values[-1 * IV_PERIOD].close
+        a.measures.iv = a.iv_history.values[-1].close
+        a.measures.iv_rank = _iv_rank(a, a.measures.iv)
+        a.measures.iv_percentile = _iv_percentile(a, a.measures.iv)
+        a.measures.price_percentile = _price_percentile(a, a.current.market_price)
 
 def assets_vector_computation(assets: Dict[str, Asset], close_values: Dict[str, List]) -> None:
     # Calculate beta
     beta = calc_beta(close_values)
     for code, value in beta.items():
-        assets[code].beta = value
+        assets[code].measures.beta = value
     # Calculate correlation
     correlation = calc_correlation(close_values)
     for code, value in correlation.items():
-        assets[code].correlation = value
+        assets[code].measures.correlation = value
     # Calculate standard desviation
     stdev = calc_stdev(close_values)
     for code, value in stdev.items():
-        assets[code].stdev = value
+        assets[code].measures.stdev = value
 
 
 def assets_directional_assumption(assets: Dict[str, Asset], close_values: Dict[str, List]) -> None:
     df = pd.DataFrame(data=close_values)
     diff = (df.iloc[-1] - df.iloc[-1 * PRICE_PERIOD]) / df.iloc[-1 * PRICE_PERIOD]
     for code, price_period in diff.iteritems():
-        assets[code].price_period = price_period
+        assets[code].measures.price_period = price_period
         
-        if assets[code].price_percentile < 0.1:            
+        if assets[code].measures.price_percentile < 0.1:            
             if price_period > 0.01:
-                assets[code].directional_assumption = Direction.Bullish
+                assets[code].measures.directional_assumption = Direction.Bullish
             elif price_period < -0.5:
-                assets[code].directional_assumption = Direction.Bearish
+                assets[code].measures.directional_assumption = Direction.Bearish
             else:
-                assets[code].directional_assumption = Direction.Neutral
+                assets[code].measures.directional_assumption = Direction.Neutral
                 
-        elif assets[code].price_percentile > 0.9:            
+        elif assets[code].measures.price_percentile > 0.9:            
             if price_period < 0.01:
-                assets[code].directional_assumption = Direction.Bearish
+                assets[code].measures.directional_assumption = Direction.Bearish
             elif price_period > 0.5:
-                assets[code].directional_assumption = Direction.Bulish
+                assets[code].measures.directional_assumption = Direction.Bulish
             else:
-                assets[code].directional_assumption = Direction.Neutral
+                assets[code].measures.directional_assumption = Direction.Neutral
 
         else:
             if price_period > 0.5:
-                assets[code].directional_assumption = Direction.Bullish
+                assets[code].measures.directional_assumption = Direction.Bullish
             elif price_period < 0.5:
-                assets[code].directional_assumption = Direction.Bearish
+                assets[code].measures.directional_assumption = Direction.Bearish
             else:
-                assets[code].directional_assumption = Direction.Neutral
+                assets[code].measures.directional_assumption = Direction.Neutral
 
 
 def portfolio_bwd(strategies: Dict[str, Strategy], ads: Dict[str, Asset], benchmark_price: float) -> float:

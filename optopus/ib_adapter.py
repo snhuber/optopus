@@ -16,7 +16,7 @@ from ib_insync.objects import (AccountValue, Position, Fill,
                                CommissionReport, ComboLeg)
 from ib_insync.order import Trade, LimitOrder, StopOrder
 from optopus.data_objects import (AssetType,
-                                  Asset, OptionData,
+                                  Asset, Current, History, Bar, OptionData,
                                   RightType,
                                   OptionMoneyness, BarData,
                                   PositionData, OwnershipType,
@@ -236,15 +236,14 @@ class IBTranslator:
     def translate_bars(self, code: str, ibbars: list) -> list:
         bars = []
         for ibb in ibbars:
-            b = BarData(code=code,
-                        bar_time=ibb.date,
-                        bar_open=ibb.open,
-                        bar_high=ibb.high,
-                        bar_low=ibb.low,
-                        bar_close=ibb.close,
-                        bar_average=ibb.average,
-                        bar_volume=ibb.volume,
-                        bar_count=ibb.barCount)
+            b = Bar(time=ibb.date,
+                    open=ibb.open,
+                    high=ibb.high,
+                    low=ibb.low,
+                    close=ibb.close,
+                    average=ibb.average,
+                    volume=ibb.volume,
+                    count=ibb.barCount)
             bars.append(b)
         return bars
 
@@ -286,24 +285,25 @@ class IBDataAdapter(DataAdapter):
         else:
             raise ValueError('Error: ambiguous contracts')
 
-    def update_assets(self, assets: Dict[str, Asset]) -> None:
+    def update_assets(self, assets: Dict[str, Asset]) -> Dict[str, Current]:
         contracts = [a.contract for a in assets.values()]
         tickers = self._broker.reqTickers(*contracts)
+        current_values = {}
         for t in tickers:
-            asset = assets[t.contract.symbol]
-            asset.high = t.high
-            asset.low = t.low
-            asset.close = t.close
-            asset.bid = t.bid
-            asset.bid_size = t.bidSize
-            asset.ask = t.ask
-            asset.ask_size = t.askSize
-            asset.last = t.last
-            asset.last_size = t.lastSize
-            asset.volume = t.volume
-            asset.time = t.time
+            c = Current(high=t.high,
+                        low=t.low,
+                        close=t.close,
+                        bid=t.bid,
+                        bid_size=t.bidSize,
+                        ask=t.ask,
+                        ask_size=t.askSize,
+                        last=t.last,
+                        volume=t.volume,
+                        time=t.time)
+            current_values[t.contract.symbol] = c
+        return current_values
 
-    def get_historical(self, a: Asset) -> None:
+    def get_price_history(self, a: Asset) -> None:
         bars = self._broker.reqHistoricalData(a.contract,
                                               endDateTime='',
                                               durationStr=str(HISTORICAL_YEARS) + ' Y',
@@ -311,9 +311,9 @@ class IBDataAdapter(DataAdapter):
                                               whatToShow='TRADES',
                                               useRTH=True,
                                               formatDate=1)
-        return self._translator.translate_bars(a.code, bars)
+        return History(self._translator.translate_bars(a.code, bars))
 
-    def get_historical_IV(self, a: Asset) -> None:
+    def get_iv_history(self, a: Asset) -> None:
         bars = self._broker.reqHistoricalData(a.contract,
                                               endDateTime='',
                                               durationStr=str(HISTORICAL_YEARS) + ' Y',
@@ -321,7 +321,7 @@ class IBDataAdapter(DataAdapter):
                                               whatToShow='OPTION_IMPLIED_VOLATILITY',
                                               useRTH=True,
                                               formatDate=1)
-        return self._translator.translate_bars(a.code, bars)
+        return History(self._translator.translate_bars(a.code, bars))
 
 
     def get_optionchain(self, a: Asset, expiration: datetime.date) -> List[OptionData]:

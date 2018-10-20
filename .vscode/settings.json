@@ -1,3 +1,7 @@
 {
-    "python.pythonPath": "/home/ilia/anaconda3/envs/optopus/bin/python"
+    "python.pythonPath": "/home/ilia/anaconda3/envs/optopus/bin/python",
+    "python.unitTest.promptToConfigure": false,
+    "python.unitTest.pyTestEnabled": true,
+    "python.unitTest.unittestEnabled": false,
+    "python.unitTest.nosetestsEnabled": false
 }

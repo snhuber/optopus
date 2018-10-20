@@ -3,7 +3,7 @@ import copy
 import datetime
 import logging
 from typing import Dict
-from optopus.data_objects import (Asset, Strategy, Portfolio)
+from optopus.data_objects import (Asset, History, Strategy, Portfolio)
 from optopus.computation import (assets_loop_computation,
                                  assets_vector_computation,
                                  assets_directional_assumption,
@@ -73,41 +73,49 @@ class DataManager():
     def update_assets(self) -> None:
         """Updates the current asset values.
         """
-        self._da.update_assets(self.assets)
+        current_values = self._da.update_assets(self.assets)
+        for code, current in current_values.items():
+            self._assets[code].current = current 
 
     def update_historical_assets(self) -> None:
         """Updates historical assets values
         """
         for a in self._assets.values():
-            if not a.historical_is_updated():
-                a.historical = self._da.get_historical(a)
-                a._historical_updated = datetime.datetime.now()
+            if a.price_history:
+                delta = datetime.datetime.now() - a.price_history.created
+                if delta.days:
+                    a.price_history = self._da.get_price_history(a)
+            else:
+                a.price_history = self._da.get_price_history(a)
 
     def update_historical_IV_assets(self) -> None:
         """Updates historical IV asset values
         """
         for a in self._assets.values():
-            if not a.historical_IV_is_updated():
-                a.historical_IV = self._da.get_historical_IV(a)
-                a._historical_IV_updated = datetime.datetime.now()
+            if a.iv_history:
+                delta = datetime.datetime.now() - a.iv_history.created
+                if delta.days:
+                    a.iv_history = self._da.get_iv_history(a)
+            else:
+                a.iv_history = self._da.get_iv_history(a)
 
     def compute(self) -> None:
         """Computes some asset measures
         """
         assets_loop_computation(self._assets)
-        assets_vector_computation(self._assets, self.assets_matrix('bar_close'))
+        assets_vector_computation(self._assets, self.assets_matrix('close'))
         #print({k: a.current.market_price for (k, a) in self._assets.items()})
-        assets_directional_assumption(self._assets, self.assets_matrix('bar_close'))
+        assets_directional_assumption(self._assets, self.assets_matrix('close'))
         self.portfolio.bwd = portfolio_bwd(self.strategies,
                                            self._assets,
-                                           self._assets[MARKET_BENCHMARK].market_price)
+                                           self._assets[MARKET_BENCHMARK].current.market_price)
 
     def assets_matrix(self, field: str) -> dict:
         """Returns a attribute from historical for every asset
         """
         d = {}
         for a in self._assets.values():
-            d[a.code] = [getattr(bd, field) for bd in a._historical_data]
+            d[a.code] = [getattr(bar, field) for bar in a.price_history.values]
         return d
 
     def option_chain(self, code: str, expiration: datetime.date) -> None:

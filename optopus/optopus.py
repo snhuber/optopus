@@ -46,14 +46,14 @@ class Optopus():
 
         self._log.debug('Retrieving underling data')
         self._data_manager.initialize_assets()
+        
         self._data_manager.update_assets()
-        self._data_manager.update_strategy_options()
-        self._data_manager.check_strategy_positions()
-
         self._data_manager.update_historical_assets()
         self._data_manager.update_historical_IV_assets()
         self._data_manager.compute()
 
+        self._data_manager.update_strategy_options()
+        self._data_manager.check_strategy_positions()
 
         self._log.info('System started')
 
@@ -87,7 +87,7 @@ class Optopus():
             self._data_manager.update_assets()
             self._data_manager.update_strategy_options()
             self._data_manager.check_strategy_positions()
-    
+            # FIXME: Compute must be before check_strategy?
             self._data_manager.compute()
             
             for algorithm in self._algorithms:
