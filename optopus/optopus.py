@@ -12,7 +12,7 @@ import logging
 from optopus.data_manager import DataManager
 from optopus.order_manager import OrderManager
 from optopus.watch_list import WATCH_LIST
-from optopus.data_objects import (Asset, OptionData,
+from optopus.data_objects import (Asset, Option,
                                   Strategy, Account, Portfolio)
 from optopus.settings import (SLEEP_LOOP, EXPIRATIONS, PRESERVED_CASH_FACTOR,
                               MAXIMUM_RISK_FACTOR)
@@ -104,7 +104,7 @@ class Optopus():
     def assets_matrix(self, field: str) -> dict:
         return self._data_manager.assets_matrix(field)
 
-    def option_chain(self, code: str, expiration: datetime.date) -> List[OptionData]:
+    def option_chain(self, code: str, expiration: datetime.date) -> List[Option]:
         return self._data_manager.option_chain(code, expiration)
         #return self._data_manager._assets[code]._option_chain
     

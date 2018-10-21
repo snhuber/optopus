@@ -102,6 +102,7 @@ class DataManager():
     def compute(self) -> None:
         """Computes some asset measures
         """
+        # TODO: Do Measures class immutable
         assets_loop_computation(self._assets)
         assets_vector_computation(self._assets, self.assets_matrix('close'))
         #print({k: a.current.market_price for (k, a) in self._assets.items()})

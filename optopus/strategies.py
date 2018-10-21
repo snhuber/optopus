@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-from optopus.data_objects import (Strategy, StrategyType, Leg, OwnershipType, Currency, OptionData)
+from optopus.data_objects import (Strategy, StrategyType, Leg, OwnershipType, Currency, Option)
 
 
 class ShortPutVerticalSpread(Strategy):
@@ -11,8 +11,8 @@ class ShortPutVerticalSpread(Strategy):
                  take_profit_factor: float,
                  underlying_entry_price: float,
                  multiplier: int,
-                 sell_put: OptionData,
-                 buy_put: OptionData):
+                 sell_put: Option,
+                 buy_put: Option):
         self._spread_witdh = None
         legs = {}
         legs['sell_leg'] = Leg(sell_put, OwnershipType.Seller, 1)

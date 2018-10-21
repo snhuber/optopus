@@ -112,7 +112,6 @@ class Current:
 
 @dataclass(frozen=True)
 class Bar():
-    #self.code = code
     time: datetime.date
     open: float
     high: float
@@ -152,67 +151,43 @@ class Asset:
     iv_history: History = None
     measures: Measures = Measures()
 
-
-class OptionData:
-    def __init__(self,
-                 code: str,
-                 expiration: datetime.date,
-                 strike: float,
-                 right: RightType,
-                 high: float = nan,
-                 low: float = nan,
-                 close: float = nan,
-                 bid: float = nan,
-                 bid_size: float = nan,
-                 ask: float = nan,
-                 ask_size: float = nan,
-                 last: float = nan,
-                 last_size: float = nan,
-                 option_price: float = nan,
-                 currency: str = None,
-                 multiplier: int = 100,
-                 volume: float = nan,
-                 delta: float = nan,
-                 gamma: float = nan,
-                 theta: float = nan,
-                 vega: float = nan,
-                 implied_volatility: float = nan,
-                 underlying_price: float = nan,
-                 underlying_dividends: float = nan,
-                 time: datetime.datetime = None,
-                 contract: object = None)-> None:
-        self.code = code
-        self.asset_type = AssetType.Option
-        self.expiration = expiration
-        self.strike = strike
-        self.right = right
-        self.high = high
-        self.low = low
-        self.close = close
-        self.bid = bid
-        self.bid_size = bid_size
-        self.ask = ask
-        self.ask_size = ask_size
-        self.last = last
-        self.last_size = last_size
-        self.option_price = option_price
-        self.currency = currency
-        self.multiplier = multiplier
-        self.volume = volume
-        self.delta = delta
-        self.gamma = gamma
-        self.theta = theta
-        self.vega = vega
-        self.implied_volatility = implied_volatility
-        self.underlying_price = underlying_price
-        self.underlying_dividends = underlying_dividends
-        self.time = time
-        self.contract = contract
-        self.DTE = (self.expiration - datetime.datetime.now().date()).days
+@dataclass(frozen=True)
+class Option:
+    code: str
+    asset_type: AssetType
+    expiration: datetime.date
+    strike: int
+    right: RightType
+    high: float = None
+    low: float = None
+    close: float = None
+    bid: float = None
+    bid_size: float = None
+    ask: float = None
+    ask_size: float = None
+    last: float = None
+    last_size: float = None
+    option_price: float = None
+    currency: Currency = None
+    multiplier: int = None
+    volume: int = None
+    delta: float = None
+    gamma: float = None
+    theta: float = None
+    vega: float = None
+    iv: float = None
+    underlying_price: float = None
+    underlying_dividends: float = None
+    time: datetime.datetime = None
+    contract: Any = None
 
     @property
     def midpoint(self):
         return (self.bid + self.ask) / 2
+
+    @property
+    def DTE(self):
+        return (self.expiration - datetime.datetime.now().date()).days
 
 
 class PositionData():
@@ -274,7 +249,7 @@ class TradeData:
 
 class Leg:
     def __init__(self,
-                 option: OptionData,
+                 option: Option,
                  ownership: OwnershipType,
                  ratio: int) -> None:
         self.option = option

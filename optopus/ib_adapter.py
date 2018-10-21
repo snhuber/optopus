@@ -11,14 +11,14 @@ from typing import List, Dict
 from pathlib import Path
 
 from ib_insync.ib import IB, Contract
-from ib_insync.contract import Index, Option, Stock
+from ib_insync.contract import Index as IBIndex, Option as IBOption, Stock as IBStock
 from ib_insync.objects import (AccountValue, Position, Fill,
                                CommissionReport, ComboLeg)
 from ib_insync.order import Trade, LimitOrder, StopOrder
 from optopus.data_objects import (AssetType,
-                                  Asset, Current, History, Bar, OptionData,
+                                  Asset, Current, History, Bar, Option,
                                   RightType,
-                                  OptionMoneyness, BarData,
+                                  OptionMoneyness,
                                   PositionData, OwnershipType,
                                   Account,
                                   OrderStatus,
@@ -268,13 +268,14 @@ class IBDataAdapter(DataAdapter):
         return positions_data
 
     def initialize_assets(self, assets: Dict[str, Asset]) -> None:
+        # TODO: Create the assets here
         contracts = []
         for asset in assets.values():
             if asset.asset_type == AssetType.Index:
-                contracts.append(Index(asset.code,
+                contracts.append(IBIndex(asset.code,
                                        currency=CURRENCY.value))
             elif asset.asset_type == AssetType.Stock:
-                contracts.append(Stock(asset.code,
+                contracts.append(IBStock(asset.code,
                                        exchange='SMART',
                                        currency=CURRENCY.value))
         # It works if len(contracts) < 50. IB limit.
@@ -324,7 +325,7 @@ class IBDataAdapter(DataAdapter):
         return History(self._translator.translate_bars(a.code, bars))
 
 
-    def get_optionchain(self, a: Asset, expiration: datetime.date) -> List[OptionData]:
+    def get_optionchain(self, a: Asset, expiration: datetime.date) -> List[Option]:
         chains = self._broker.reqSecDefOptParams(a.contract.symbol,
                                                  '',
                                                  a.contract.secType,
@@ -346,7 +347,7 @@ class IBDataAdapter(DataAdapter):
             rights = ['P', 'C']
 
             # Create the options contracts
-            contracts = [Option(a.contract.symbol,
+            contracts = [IBOption(a.contract.symbol,
                                 format_ib_date(expiration),
                                 strike,
                                 right,
@@ -370,7 +371,7 @@ class IBDataAdapter(DataAdapter):
 
             return self.get_options(q_contracts)
 
-    def get_options(self, q_contracts: List[Contract]) -> Dict[str, OptionData]:
+    def get_options(self, q_contracts: List[Contract]) -> Dict[str, Option]:
             tickers = []
             for q in chunks(q_contracts, 50):
                 tickers += self._broker.reqTickers(*q)
@@ -396,7 +397,7 @@ class IBDataAdapter(DataAdapter):
                     underlying_price = t.modelGreeks.undPrice
                     underlying_dividends = t.modelGreeks.pvDividend
 
-                opt = OptionData(
+                opt = Option(
                         code=code,
                         expiration=expiration,
                         strike=strike,
