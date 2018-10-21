@@ -3,7 +3,8 @@ import copy
 import datetime
 import logging
 from typing import Dict
-from optopus.data_objects import (Asset, History, Strategy, Portfolio)
+from optopus.data_objects import (Asset, History, Portfolio)
+from optopus.strategy import Strategy
 from optopus.computation import (assets_loop_computation,
                                  assets_vector_computation,
                                  assets_directional_assumption,

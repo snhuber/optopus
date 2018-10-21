@@ -1,7 +1,8 @@
 # -*- coding: utf-8 -*-
 import logging
-from optopus.data_objects import (OrderType, Strategy, OrderRol,
+from optopus.data_objects import (OrderType, OrderRol,
                                   OrderStatus)
+from optopus.strategy import Strategy
 from optopus.data_manager import DataManager
 from optopus.utils import notify
 

@@ -3,7 +3,6 @@ import datetime
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import List, Dict, Any
-from optopus.utils import nan, is_nan
 
 
 class DataSource(Enum):
@@ -23,13 +22,6 @@ class AssetType(Enum):
     FuturesOption = 'FOP'
     MutualFund = 'FUND'
     Warrant = 'IOPT'
-
-
-class StrategyType(Enum):
-    ShortPut = 'SP'
-    ShortPutVerticalSpread = 'SPVS'
-    ShortCallVerticalSpread = 'SCVS'
-
 
 class OrderType(Enum):
     Market = 'MTK'
@@ -225,145 +217,6 @@ class Trade:
     status: OrderStatus
     remaining: float
     commission: float
-
-class Leg:
-    def __init__(self,
-                 option: Option,
-                 ownership: OwnershipType,
-                 ratio: int) -> None:
-        self.option = option
-        self.ownership = ownership
-        self.ratio = ratio
-        self.created = datetime.datetime.now()
-        self.filled = None
-        self.commission = None
-        
-        self.leg_id = self.option.code + ' ' + str(self.ownership.value) + ' ' + self.option.right.value + ' ' + str(round(self.option.strike, 1)) + ' ' + self.option.expiration.strftime('%d-%m-%Y')
-
-    @property
-    def price(self):
-        return (self.option.bid + self.option.ask) / 2
-
-    def __repr__(self):
-        return(f'{self.__class__.__name__}('
-               f'{self.option.code, self.option.ownership.value, self.option.right.value, self.option.strike, self.option.expiration, self.option.multiplier, self.option.currency, self.option.quantity})')
-        
-    
-
-class Strategy:
-    def __init__(self,
-                 code: str,
-                 strategy_type: StrategyType,
-                 ownership: OwnershipType,
-                 currency: Currency,
-                 take_profit_factor: float,
-                 underlying_entry_price: float,
-                 multiplier: int,
-                 legs: Dict[str, Leg]):
-        #self.asset = asset
-        self._code = code
-        self._strategy_type = strategy_type
-        self._ownership = ownership
-        self._currency = currency
-        self._legs = legs
-        self._created = datetime.datetime.now()
-        self._strategy_id = self._code + ' ' + self._created.strftime('%d-%m-%Y %H:%M:%S')
-        self._underlying_entry_price = underlying_entry_price
-        self._entry_price = None
-        self._take_profit_factor = take_profit_factor      
-        #self._take_profit_price = None
-        self._opened = None
-        self._closed = None
-        self._quantity = None
-        self._multiplier = multiplier
-        
-        #self._spread_witdh = None
-        #self._breakeven_price = None
-        #self._maximum_profit = None
-        #self._maximum_loss = None
-        #self._POP = None
-        #self._ROI = None
-
-    @property
-    def code(self):
-        return self._code
-    
-    @property
-    def strategy_type(self):
-        return self._strategy_type
-    
-    @property
-    def ownership(self):
-        return self._ownership
-    
-    @property
-    def currency(self):
-        return self._currency
-
-    @property
-    def legs(self):
-        return self._legs
-    
-    @property
-    def strategy_id(self):
-        return self._strategy_id
-
-    @property
-    def underlying_entry_price(self):
-        return self._underlying_entry_price
-
-    @property
-    def entry_price(self):
-        return self._entry_price
-    
-    @entry_price.setter
-    def entry_price(self, value):
-        self._entry_price = value
-    
-    @property
-    def take_profit_price(self):
-        return self._take_profit_price
-    
-    @take_profit_price.setter
-    def take_profit_price(self, value):
-        self._take_profit_price = value
-
-    @property
-    def created(self):
-        return self._created
-
-    @property
-    def opened(self):
-        return self._opened
-
-    @opened.setter
-    def opened(self, value):
-        self._opened = value
-
-    @property
-    def closed(self):
-        return self._closed
-
-    @closed.setter
-    def closed(self, value):
-        self._closed = value
-
-    @property
-    def quantity(self):
-        return self._quantity
-
-    @quantity.setter
-    def quantity(self, value):
-        self._quantity = value
-
-    @property
-    def multiplier(self):
-        return self._multiplier
-
-    def __repr__(self):
-        return(f'{self.__class__.__name__}('
-               f'{self.code, self.strategy_type.value, self.created}'
-               f'\n{self.legs!r}')
 
 
 

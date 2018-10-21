@@ -6,7 +6,9 @@ from optopus.settings import (MARKET_BENCHMARK, STDEV_PERIOD, BETA_PERIOD,
                               CORRELATION_PERIOD, HISTORICAL_YEARS,
                               PRICE_PERIOD, IV_PERIOD)
 from optopus.data_objects import (Asset, OwnershipType, 
-                                  Position, Strategy, Direction)
+                                  Position, Direction)
+from optopus.strategy import Strategy
+                            
 
 # https://conceptosclaros.com/que-es-la-covarianza-y-como-se-calcula-estadistica-descriptiva/
 # http://gouthamanbalaraman.com/blog/calculating-stock-beta.html

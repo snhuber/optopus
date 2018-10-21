@@ -22,11 +22,12 @@ from optopus.data_objects import (AssetType,
                                   Position, OwnershipType,
                                   Account,
                                   OrderStatus,
-                                  Trade, StrategyType, Strategy)
+                                  Trade)
+from optopus.strategy import StrategyType, Strategy
 from optopus.data_manager import DataAdapter
 from optopus.settings import (CURRENCY, HISTORICAL_YEARS, DTE_MAX, DTE_MIN,
                               EXPIRATIONS)
-from optopus.utils import nan, parse_ib_date, format_ib_date
+from optopus.utils import parse_ib_date, format_ib_date
 
 
 class IBBrokerAdapter:
@@ -385,7 +386,7 @@ class IBDataAdapter(DataAdapter):
                 right = RightType.Call if t.contract.right =='C' else RightType.Put
                 delta = gamma = theta = vega = option_price = \
                 implied_volatility = underlying_price = \
-                underlying_dividends = nan
+                underlying_dividends = None
 
                 if t.modelGreeks:
                     delta = t.modelGreeks.delta

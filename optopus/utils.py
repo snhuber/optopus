@@ -1,26 +1,53 @@
 from collections import OrderedDict
 import datetime
 from enum import Enum
-from typing import List
+from typing import List, Any
 from urllib import request, parse
-#tfrom optopus.settings import BUY_COLOR, SELL_COLOR, UNDERLYING_COLOR
 import pandas as pd
 from pandas import DataFrame
+from optopus.data_objects import Asset
 
-def to_df(items: List[object]) -> DataFrame:
+def to_df(items: List[Any]) -> DataFrame:
+    rows = []
+    if all([isinstance(i, Asset) for i in items]):
+        rows = assets_to_df(items)
+    else: 
+        for i in items:
+            d = OrderedDict()
+            for attr in dir(i):
+                #print(vars(i))
+                #print(dir(i))
+                value = getattr(i, attr)
+                if not any([isinstance(value, list),
+                            isinstance(value, dict),
+                            attr[0:2] == '__']):
+                    d[attr] = value.value if isinstance(value, Enum) else value
+            rows.append(d)
+    return pd.DataFrame(rows)
+
+def assets_to_df(items: List[Any]) -> OrderedDict:
     rows = []
     for i in items:
         d = OrderedDict()
-        for attr in dir(i):
-            #print(vars(i))
-            #print(dir(i))
-            value = getattr(i, attr)
+        d['code'] = i.code
+        d['asset_type'] = i.asset_type.value
+        d['currency'] = i.currency.value
+
+        for attr in dir(i.current):
+            value = getattr(i.current, attr)
             if not any([isinstance(value, list),
-                        isinstance(value, dict),
-                        attr[0:2] == '__']):
-                d[attr] = value.value if isinstance(value, Enum) else value
+                            isinstance(value, dict),
+                            attr[0:2] == '__']):
+                    d[attr] = value.value if isinstance(value, Enum) else value
+        
+        for attr in dir(i.measures):
+            value = getattr(i.measures, attr)
+            if not any([isinstance(value, list),
+                            isinstance(value, dict),
+                            attr[0:2] == '__']):
+                    d[attr] = value.value if isinstance(value, Enum) else value
         rows.append(d)
-    return pd.DataFrame(rows)
+    return rows
 
 def plot_option_positions(positions, underlying_price: float):
     import matplotlib.pyplot as plt
@@ -68,14 +95,14 @@ def plot_option_positions(positions, underlying_price: float):
     plt.plot([], [])
 
 
-nan = float('nan')
+#nan = float('nan')
 
 
-def is_nan(x: float) -> bool:
-    """
-    Not a number test.
-    """
-    return x != x
+#def is_nan(x: float) -> bool:
+#    """
+#    Not a number test.
+#    """
+#    return x != x
 
 
 def parse_ib_date(s: str) -> datetime.date:

@@ -1,9 +1,8 @@
 # -*- coding: utf-8 -*-
 import datetime
 from typing import List
-from optopus.data_objects import (Asset,
-                                  StrategyType, RightType, OwnershipType,
-                                  Strategy, Leg)
+from optopus.data_objects import (Asset, RightType, OwnershipType)
+from optopus.strategy import Strategy, StrategyType, Leg
 
 from optopus.strategies import ShortPutVerticalSpread
 from optopus.optopus import Optopus
@@ -17,8 +16,8 @@ class Taco():
         self._take_profit_factor = 0.5
         self._maximum_spread_risk = 5
         self._minimum_ROI = 0.25
-        self._minimum_IV = 0.4
-        self._minimum_IV_percentile = 0.75
+        self._minimum_iv = 0.4
+        self._minimum_iv_percentile = 0.75
         self._minimum_underlying_volume = 1000
         self._minimum_option_volume = 1 # 1000
         self._maximum_price_spread = 0.2
@@ -33,14 +32,14 @@ class Taco():
         
         df = to_df(self._opt.assets.values())
         # Implied volatily filter
-        df = df[(df['IV'] > self._minimum_IV) & (df['IV_percentile'] > self._minimum_IV_percentile)]
+        df = df[(df['iv'] > self._minimum_iv) & (df['iv_percentile'] > self._minimum_iv_percentile)]
         # Underlying volume filter
         df = df[df['volume'] > self._minimum_underlying_volume]
         
         print(df['code'])
         assets_with_positions = {s.code for s in strategies.values()}
         
-        for index, row in df.iterrows():
+        for _, row in df.iterrows():
             asset = assets[row['code']]
             if asset.code not in assets_with_positions:
                 self._bull_put_spread(asset, expiration, maximum_risk)
