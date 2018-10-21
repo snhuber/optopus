@@ -13,7 +13,6 @@ from optopus.utils import to_df
 class Taco():
     def __init__(self, opt: Optopus):
         self._opt = opt
-        self._take_profit_factor = 0.5
         self._maximum_spread_risk = 5
         self._minimum_ROI = 0.25
         self._minimum_iv = 0.4
@@ -106,15 +105,8 @@ class Taco():
             print(sell_option)
             print(buy_option)
             
-            strategy = ShortPutVerticalSpread(asset.code,
-                                              StrategyType.ShortPutVerticalSpread,
-                                              OwnershipType.Buyer,
-                                              asset.currency,
-                                              self._take_profit_factor,
-                                              asset.market_price,
-                                              sell_option.multiplier,
-                                              sell_option,
-                                              buy_option)
+            strategy = ShortPutVerticalSpread(asset, sell_option, buy_option, OwnershipType.Buyer)
+                                            )
             
             self._opt.new_strategy(strategy)
         

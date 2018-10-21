@@ -1,24 +1,20 @@
 # -*- coding: utf-8 -*-
-from optopus.data_objects import OwnershipType, Currency, Option
+from optopus.data_objects import Asset, OwnershipType, Currency, Option
 from optopus.strategy import Strategy, StrategyType, Leg
 
 class ShortPutVerticalSpread:
     def __init__(self,
-                 code: str,
-                 strategy_type: StrategyType,
-                 ownership: OwnershipType,
-                 currency: Currency,
-                 take_profit_factor: float,
-                 underlying_entry_price: float,
-                 multiplier: int,
-                 sell_put: Option,
-                 buy_put: Option):
+                asset: Asset,
+                sell_put: Option,
+                buy_put: Option,
+                ownership: OwnershipType,
+                take_profit_factor: float = 0.5):
         
         legs = {}
         legs['sell_leg'] = Leg(sell_put, OwnershipType.Seller, 1)
         legs['buy_leg'] = Leg(buy_put, OwnershipType.Buyer, 1)
-        self.strategy = Strategy(code, StrategyType.ShortPutVerticalSpread, ownership, currency, take_profit_factor, multiplier, legs)
-        self.underlying_entry_price = underlying_entry_price
+        self.strategy = Strategy(asset.code, StrategyType.ShortPutVerticalSpread, ownership, asset.currency, take_profit_factor, sell_put.multiplier, legs)
+        self.underlying_entry_price = asset.market_price
         # TODO: make properties
         self._opened = None
         self._closed = None
