@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+# TODO: import from a cfg file
 from optopus.data_objects import Currency
 import datetime
 

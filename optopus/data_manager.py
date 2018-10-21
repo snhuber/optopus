@@ -3,7 +3,7 @@ import copy
 import datetime
 import logging
 from typing import Dict
-from optopus.data_objects import (Asset, History, Portfolio)
+from optopus.data_objects import (Asset, History, Measures, Portfolio)
 from optopus.strategy import Strategy
 from optopus.computation import (assets_loop_computation,
                                  assets_vector_computation,
@@ -104,13 +104,26 @@ class DataManager():
         """Computes some asset measures
         """
         # TODO: Do Measures class immutable
-        assets_loop_computation(self._assets)
-        assets_vector_computation(self._assets, self.assets_matrix('close'))
+        loop_m = assets_loop_computation(self._assets)
+        vector_m = assets_vector_computation(self._assets, self.assets_matrix('close'))
         #print({k: a.current.market_price for (k, a) in self._assets.items()})
-        assets_directional_assumption(self._assets, self.assets_matrix('close'))
-        self.portfolio.bwd = portfolio_bwd(self.strategies,
-                                           self._assets,
-                                           self._assets[MARKET_BENCHMARK].current.market_price)
+        directional_m = assets_directional_assumption(self._assets, self.assets_matrix('close'))
+        #self.portfolio.bwd = portfolio_bwd(self.strategies,
+        #                                   self._assets,
+        #                                   self._assets[MARKET_BENCHMARK].current.market_price)
+
+        for a in self._assets.values():
+            a.measures = Measures(
+                                price_percentile=loop_m[a.code]['price_percentile'], 
+                                price_pct=loop_m[a.code]['price_pct'], 
+                                iv=loop_m[a.code]['iv'], 
+                                iv_rank=loop_m[a.code]['iv_rank'], 
+                                iv_percentile=loop_m[a.code]['iv_percentile'],
+                                iv_pct=loop_m[a.code]['iv_pct'], 
+                                stdev=vector_m[a.code]['stdev'],
+                                beta=vector_m[a.code]['beta'], 
+                                correlation=vector_m[a.code]['correlation'],
+                                directional_assumption=directional_m[a.code]['directional_assumption'])
 
     def assets_matrix(self, field: str) -> dict:
         """Returns a attribute from historical for every asset

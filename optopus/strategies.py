@@ -1,6 +1,27 @@
 # -*- coding: utf-8 -*-
+import datetime
 from optopus.data_objects import Asset, OwnershipType, Currency, Option
 from optopus.strategy import Strategy, StrategyType, Leg
+class DefinedStrategy:
+    def __init__(self):
+        self._created: datetime.datetime = datetime.datetime.now()
+        self._opened: datetime.datetime = None
+        self._closed: datetime.datetime = None
+        # TODO: quantity must be in smart_strategy
+        self._quantity: int = None
+
+    @property
+    def created(self):
+        return self.created
+
+    @property
+    def opened(self):
+        return self.opened
+
+    @property 
+    def closed(self):
+        return self._closed
+
 
 class ShortPutVerticalSpread:
     def __init__(self,
@@ -16,9 +37,7 @@ class ShortPutVerticalSpread:
         self.strategy = Strategy(asset.code, StrategyType.ShortPutVerticalSpread, ownership, asset.currency, take_profit_factor, sell_put.multiplier, legs)
         self.underlying_entry_price = asset.market_price
         # TODO: make properties
-        self._opened = None
-        self._closed = None
-        self._quantity = None
+        
    
     @property
     def entry_price(self):

@@ -105,9 +105,7 @@ class Taco():
             print(sell_option)
             print(buy_option)
             
-            strategy = ShortPutVerticalSpread(asset, sell_option, buy_option, OwnershipType.Buyer)
-                                            )
-            
+            strategy = ShortPutVerticalSpread(asset, sell_option, buy_option, OwnershipType.Buyer)        
             self._opt.new_strategy(strategy)
         
         

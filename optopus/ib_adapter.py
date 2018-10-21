@@ -246,7 +246,7 @@ class IBTranslator:
                     volume=ibb.volume,
                     count=ibb.barCount)
             bars.append(b)
-        return bars
+        return tuple(bars)
 
 
 class IBDataAdapter(DataAdapter):
@@ -300,6 +300,7 @@ class IBDataAdapter(DataAdapter):
                         ask=t.ask,
                         ask_size=t.askSize,
                         last=t.last,
+                        last_size=t.lastSize,
                         volume=t.volume,
                         time=t.time)
             current_values[t.contract.symbol] = c
