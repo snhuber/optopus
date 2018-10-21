@@ -189,63 +189,42 @@ class Option:
     def DTE(self):
         return (self.expiration - datetime.datetime.now().date()).days
 
+@dataclass(frozen=True)
+class Position():
+    code: str
+    asset_type: AssetType
+    ownership: OwnershipType
+    expiration: datetime.date
+    strike: int
+    right: RightType
+    quantity: int   
+    average_cost: float
+    option_price: float
+    trade_price: float
+    trade_time: datetime.datetime
+    underlying_price: float
+    beta: float
+    delta: float
+    algorithm: str
+    strategy: str
+    rol: str
 
-class PositionData():
-    def __init__(self,
-                 code: str,
-                 asset_type: AssetType,
-                 ownership: OwnershipType,
-                 quantity: int,
-                 expiration: datetime.date,
-                 strike: float,
-                 right: RightType,
-                 average_cost: float = None) -> None:
+    @property
+    def DTE(self):
+        return (self.expiration - datetime.datetime.now().date()).days
 
-        self.code = code
-        self.asset_type = asset_type
-        self.ownership = ownership
-        self.expiration = expiration
-        self.strike = strike
-        self.right = right
-        self.quantity = quantity
-        self.position_id = self.code + ' ' + str(self.ownership.value) + ' ' + self.right.value + ' ' + str(round(self.strike, 1)) + ' ' + self.expiration.strftime('%d-%m-%Y')
-        
-        self.average_cost = average_cost
-        #self.trades = []
-        self.option_price = None
-        self.trade_price = None
-        self.trade_time = None
-        self.underlying_price = None
-        self.beta = None
-        self.delta = None
-        self.algorithm = None
-        self.strategy = None
-        self.rol = None
-        self.DTE = None
-
-    def __repr__(self):
-        return (f'{self.__class__.__name__}('
-                f'{self.__dict__})')
-
-
+    @property
+    def position_id(self):
+        return self.code + ' ' + str(self.ownership.value) + ' ' + self.right.value + ' ' + str(round(self.strike, 1)) + ' ' + self.expiration.strftime('%d-%m-%Y')
 
 
 # https://interactivebrokers.github.io/tws-api/order_submission.html
-class TradeData:
-    def __init__(self,
-                 order_id: str,
-                 status: OrderStatus,
-                 remaining: int,
-                 commission: float):
-        self.order_id = order_id
-        self.status = status
-        self.remaining = remaining
-        self.commission = commission
-
-    def __repr__(self):
-        return (f'{self.__class__.__name__}('
-                f'{self.__dict__})')
-
+@dataclass(frozen=True)
+class Trade:
+    order_id: str
+    status: OrderStatus
+    remaining: float
+    commission: float
 
 class Leg:
     def __init__(self,

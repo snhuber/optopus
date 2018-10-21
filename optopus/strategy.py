@@ -1,6 +1,6 @@
 from collections import OrderedDict
 from typing import List
-from optopus.data_objects import StrategyType, PositionData
+from optopus.data_objects import StrategyType, Position
 
 
 class Strategy():
@@ -14,7 +14,7 @@ class Strategy():
         self.breakeven = None
         self.pop = None # Probability of profit / success
 
-    def add_position(self, position: PositionData):
+    def add_position(self, position: Position):
         self.positions.append(position)
     def to_dict(self):
         d = OrderedDict()

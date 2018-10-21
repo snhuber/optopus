@@ -12,17 +12,17 @@ from pathlib import Path
 
 from ib_insync.ib import IB, Contract
 from ib_insync.contract import Index as IBIndex, Option as IBOption, Stock as IBStock
-from ib_insync.objects import (AccountValue, Position, Fill,
+from ib_insync.objects import (AccountValue, Position as IBPosition, Fill,
                                CommissionReport, ComboLeg)
-from ib_insync.order import Trade, LimitOrder, StopOrder
+from ib_insync.order import Trade as IBTrade, LimitOrder, StopOrder
 from optopus.data_objects import (AssetType,
                                   Asset, Current, History, Bar, Option,
                                   RightType,
                                   OptionMoneyness,
-                                  PositionData, OwnershipType,
+                                  Position, OwnershipType,
                                   Account,
                                   OrderStatus,
-                                  TradeData, StrategyType, Strategy)
+                                  Trade, StrategyType, Strategy)
 from optopus.data_manager import DataAdapter
 from optopus.settings import (CURRENCY, HISTORICAL_YEARS, DTE_MAX, DTE_MIN,
                               EXPIRATIONS)
@@ -53,7 +53,7 @@ class IBBrokerAdapter:
     def sleep(self, time: float) -> None:
         self._broker.sleep(time)
         
-    def _onOrderStatusEvent(self, trade: Trade):
+    def _onOrderStatusEvent(self, trade: IBTrade):
         self.emit_order_status(self._translator.translate_trade(trade))
 
     def _reverse_ownership(sefl, ownership):
@@ -182,7 +182,7 @@ class IBTranslator:
                     account.SMA = float(v.value)
         return account
 
-    def translate_position(self, item: Position) -> PositionData:
+    def translate_position(self, item: Position) -> Position:
         code = item.contract.symbol
         asset_type = self._sectype_translation[item.contract.secType]
 
@@ -215,7 +215,7 @@ class IBTranslator:
                                 average_cost=item.avgCost)
         return position
 
-    def translate_trade(self, item: Trade) -> TradeData:
+    def translate_trade(self, item: IBTrade) -> Trade:
 
         #print(item)
         
@@ -227,7 +227,7 @@ class IBTranslator:
         except AttributeError as e:
             commission = None
 
-        trade = TradeData(order_id=order_id,
+        trade = Trade(order_id=order_id,
                           status=status,
                           remaining=remaining,
                           commission=commission)
@@ -259,7 +259,7 @@ class IBDataAdapter(DataAdapter):
         account = self._translator.translate_account(values)
         return account
 
-    def get_positions(self) -> Dict[str, PositionData]:
+    def get_positions(self) -> Dict[str, Position]:
         positions = self._broker.positions()
         positions_data = {}
         for p in positions:
@@ -399,6 +399,7 @@ class IBDataAdapter(DataAdapter):
 
                 opt = Option(
                         code=code,
+                        asset_type=AssetType.Option,
                         expiration=expiration,
                         strike=strike,
                         right=right,
