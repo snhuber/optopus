@@ -15,8 +15,9 @@ from ib_insync.contract import Index as IBIndex, Option as IBOption, Stock as IB
 from ib_insync.objects import (AccountValue, Position as IBPosition, Fill,
                                CommissionReport, ComboLeg)
 from ib_insync.order import Trade as IBTrade, LimitOrder, StopOrder
-from optopus.data_objects import (AssetType,
-                                  Asset, Current, History, Bar, Option,
+from optopus.asset import Asset, Current, History, Bar
+from optopus.common import AssetType
+from optopus.data_objects import (Option,
                                   RightType,
                                   OptionMoneyness,
                                   Position, OwnershipType,

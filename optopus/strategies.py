@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 import datetime
-from optopus.data_objects import Asset, OwnershipType, Currency, Option
+from optopus.asset import Asset
+from optopus.data_objects import OwnershipType, Currency, Option
 from optopus.strategy import Strategy, StrategyType, Leg
 class DefinedStrategy:
     def __init__(self):

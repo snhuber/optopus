@@ -5,8 +5,10 @@ import numpy as np
 from optopus.settings import (MARKET_BENCHMARK, STDEV_PERIOD, BETA_PERIOD,
                               CORRELATION_PERIOD, HISTORICAL_YEARS,
                               PRICE_PERIOD, IV_PERIOD)
-from optopus.data_objects import (Asset, OwnershipType, 
-                                  Position, Direction)
+from optopus.asset import Asset
+from optopus.common import Direction
+from optopus.data_objects import (OwnershipType, 
+                                  Position)
 from optopus.strategy import Strategy
                             
 
@@ -15,7 +17,6 @@ from optopus.strategy import Strategy
 # https://www.quora.com/What-is-the-difference-between-beta-and-correlation-coefficient
 # https://www.investopedia.com/articles/investing/102115/what-beta-and-how-calculate-beta-excel.asp
 
-# TODO: Use tuples(History) than list for data series
 
 def calc_beta(values: dict) -> dict:
     # calculate daily returns

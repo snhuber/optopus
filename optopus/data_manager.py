@@ -3,7 +3,8 @@ import copy
 import datetime
 import logging
 from typing import Dict
-from optopus.data_objects import (Asset, History, Measures, Portfolio)
+from optopus.asset import Asset, History, Measures
+from optopus.data_objects import Portfolio
 from optopus.strategy import Strategy
 from optopus.computation import (assets_loop_computation,
                                  assets_vector_computation,
@@ -17,22 +18,6 @@ class DataAdapter:
 
 
 class DataManager():
-    """
-    A class used to store the data and manage the their updates
-
-    Attributes
-    ----------
-    _account : Account
-        the data of the broker account
-    _assets : Dict[str, Asset]
-        the assets we can trade
-    _strategies : Dict[str, Strategy]
-        the strategies grouping the positions
-    _da : DataAdapter
-        adapter object for ib_insyinc
-    _logger: Looger
-        class logger
-    """
     def __init__(self,  data_adapter: DataAdapter, watch_list: dict) -> None:
         self._da = data_adapter
         self._account = None

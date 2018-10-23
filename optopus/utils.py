@@ -5,7 +5,7 @@ from typing import List, Any
 from urllib import request, parse
 import pandas as pd
 from pandas import DataFrame
-from optopus.data_objects import Asset
+from optopus.asset import Asset
 
 def to_df(items: List[Any]) -> DataFrame:
     rows = []

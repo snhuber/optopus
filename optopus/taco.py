@@ -1,7 +1,8 @@
 # -*- coding: utf-8 -*-
 import datetime
 from typing import List
-from optopus.data_objects import (Asset, RightType, OwnershipType)
+from optopus.asset import Asset
+from optopus.data_objects import (RightType, OwnershipType)
 from optopus.strategy import Strategy, StrategyType, Leg
 
 from optopus.strategies import ShortPutVerticalSpread
