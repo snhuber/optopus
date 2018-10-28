@@ -29,9 +29,9 @@ def assets_to_df(items: List[Any]) -> OrderedDict:
     rows = []
     for i in items:
         d = OrderedDict()
-        d['code'] = i.code
-        d['asset_type'] = i.asset_type.value
-        d['currency'] = i.currency.value
+        d['code'] = i.id.code
+        d['asset_type'] = i.id.asset_type.value
+        d['currency'] = i.id.currency.value
 
         for attr in dir(i.current):
             value = getattr(i.current, attr)

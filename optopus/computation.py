@@ -95,7 +95,7 @@ def assets_loop_computation(assets: Dict[str, Asset]) -> Dict[str, Dict]:
         values['iv'] = a.iv_history.values[-1].close
         values['iv_rank'] = _iv_rank(a, values['iv'])
         values['iv_percentile'] = _iv_percentile(a, values['iv'])
-        measures[a.code] = values
+        measures[a.id.code] = values
     return measures
 
 
@@ -112,21 +112,6 @@ def assets_vector_computation(assets: Dict[str, Asset], close_values: Dict[str, 
         values['stdev'] = stdev[code]
         measures[code] = values         
     return measures
-
-
-def assets_vector_computation_old(assets: Dict[str, Asset], close_values: Dict[str, List]) -> None:
-    # Calculate beta
-    beta = calc_beta(close_values)
-    for code, value in beta.items():
-        assets[code].measures.beta = value
-    # Calculate correlation
-    correlation = calc_correlation(close_values)
-    for code, value in correlation.items():
-        assets[code].measures.correlation = value
-    # Calculate standard desviation
-    stdev = calc_stdev(close_values)
-    for code, value in stdev.items():
-        assets[code].measures.stdev = value
 
 def assets_directional_assumption(assets: Dict[str, Asset], close_values: Dict[str, List]) -> Dict[str, Dict]:
     measures = {}

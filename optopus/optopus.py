@@ -46,7 +46,7 @@ class Optopus():
         self._data_manager.update_account()
 
         self._log.debug('Retrieving underling data')
-        self._data_manager.initialize_assets()
+        self._data_manager.create_assets()
         
         self._data_manager.update_assets()
         self._data_manager.update_historical_assets()

@@ -1,18 +1,21 @@
-import datetime
 from dataclasses import FrozenInstanceError
+import datetime
 import pytest
-from optopus.data_objects import (
-    Current,
-    Bar,
-    History,
-    Measures,
-    Direction,
-    Asset,
-    AssetType,
-    Currency,
-)
+from optopus.asset import AssetId, Asset, Current, Bar, History, Measures
+from optopus.common import AssetType, Currency, Direction
 
-# TODO: Check no valid value ranges
+
+def test_Asset_value_objet_init():
+    id = AssetId("SPY", AssetType.Stock, Currency.USDollar, None)
+    assert id.code == "SPY"
+    assert id.asset_type == AssetType.Stock
+    assert id.currency == Currency.USDollar
+
+
+def test_Asset_value_objet_init_immutable():
+    id = AssetId("SPY", AssetType.Stock, Currency.USDollar, None)
+    with pytest.raises(FrozenInstanceError):
+        id.code = "XXX"
 
 
 def test_Current_value_object_init():
@@ -242,7 +245,8 @@ def test_Measures_value_object_immutable():
 
 
 def test_Asset_entity_init():
-    asset = Asset(code="SPY", asset_type=AssetType.Stock, currency=Currency.USDollar)
+    id = AssetId("SPY", AssetType.Stock, Currency.USDollar, None)
+    asset = Asset(id)
     asset.current = Current(
         high=100.0,
         low=50.0,
@@ -266,9 +270,7 @@ def test_Asset_entity_init():
         volume=2000,
         time=datetime.datetime.now(),
     )
-    asset.price_history = History((bar,))
-    asset.iv_history = History((bar, bar))
-    asset.measures = Measures(
+    m = Measures(
         iv=0.45,
         iv_rank=0.78,
         iv_percentile=0.91,
@@ -281,10 +283,21 @@ def test_Asset_entity_init():
         directional_assumption=Direction.Bullish,
     )
 
-    assert asset.code == "SPY"
-    assert asset.asset_type == AssetType.Stock
-    assert asset.currency == Currency.USDollar
+    asset.price_history = History((bar,))
+    asset.iv_history = History((bar, bar))
+    asset.measures = m
+
+    assert asset.id.code == "SPY"
+    assert asset.id.asset_type == AssetType.Stock
+    assert asset.id.currency == Currency.USDollar
     assert asset.current.high == 100.0
     assert len(asset.price_history.values) == 1
     assert len(asset.iv_history.values) == 2
     assert asset.measures.iv == 0.45
+
+
+def test_Asset_not_change_asset_id():
+    id = AssetId("SPY", AssetType.Stock, Currency.USDollar, None)
+    asset = Asset(id)
+    with pytest.raises(AttributeError):
+        asset.id = id

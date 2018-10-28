@@ -15,7 +15,7 @@ from ib_insync.contract import Index as IBIndex, Option as IBOption, Stock as IB
 from ib_insync.objects import (AccountValue, Position as IBPosition, Fill,
                                CommissionReport, ComboLeg)
 from ib_insync.order import Trade as IBTrade, LimitOrder, StopOrder
-from optopus.asset import Asset, Current, History, Bar
+from optopus.asset import AssetId, Asset, Current, History, Bar
 from optopus.common import AssetType
 from optopus.data_objects import (Option,
                                   RightType,
@@ -28,6 +28,7 @@ from optopus.strategy import StrategyType, Strategy
 from optopus.data_manager import DataAdapter
 from optopus.settings import (CURRENCY, HISTORICAL_YEARS, DTE_MAX, DTE_MIN,
                               EXPIRATIONS)
+from optopus.stock import Stock
 from optopus.utils import parse_ib_date, format_ib_date
 
 
@@ -270,7 +271,6 @@ class IBDataAdapter(DataAdapter):
         return positions_data
 
     def initialize_assets(self, assets: Dict[str, Asset]) -> None:
-        # TODO: Create the assets here
         contracts = []
         for asset in assets.values():
             if asset.asset_type == AssetType.Index:
@@ -288,8 +288,31 @@ class IBDataAdapter(DataAdapter):
         else:
             raise ValueError('Error: ambiguous contracts')
 
+    def create_assets(self, watchlist: Dict[str, AssetType]) -> List[Asset]:
+        contracts = []
+        for code, value in watchlist.items():
+            if value == AssetType.Stock:
+                contracts.append(IBStock(code, exchange='SMART', currency=CURRENCY.value))
+        # It works if len(contracts) < 50. IB limit.
+        q_contracts = self._broker.qualifyContracts(*contracts)
+        if len(q_contracts) == len(watchlist):
+            assets = {}
+            for qc in q_contracts:
+                if qc.secType == 'STK':
+                    # TODO: The currency value depends on 
+                    id = AssetId(code = qc.symbol, 
+                                asset_type = AssetType.Stock, 
+                                currency = CURRENCY, 
+                                contract = qc)
+                    assets[id.code] = Stock(id)
+        else:
+            raise ValueError('Error: ambiguous contracts')
+        
+        return assets
+
+
     def update_assets(self, assets: Dict[str, Asset]) -> Dict[str, Current]:
-        contracts = [a.contract for a in assets.values()]
+        contracts = [a.id.contract for a in assets.values()]
         tickers = self._broker.reqTickers(*contracts)
         current_values = {}
         for t in tickers:
@@ -308,34 +331,34 @@ class IBDataAdapter(DataAdapter):
         return current_values
 
     def get_price_history(self, a: Asset) -> None:
-        bars = self._broker.reqHistoricalData(a.contract,
+        bars = self._broker.reqHistoricalData(a.id.contract,
                                               endDateTime='',
                                               durationStr=str(HISTORICAL_YEARS) + ' Y',
                                               barSizeSetting='1 day',
                                               whatToShow='TRADES',
                                               useRTH=True,
                                               formatDate=1)
-        return History(self._translator.translate_bars(a.code, bars))
+        return History(self._translator.translate_bars(a.id.code, bars))
 
     def get_iv_history(self, a: Asset) -> None:
-        bars = self._broker.reqHistoricalData(a.contract,
+        bars = self._broker.reqHistoricalData(a.id.contract,
                                               endDateTime='',
                                               durationStr=str(HISTORICAL_YEARS) + ' Y',
                                               barSizeSetting='1 day',
                                               whatToShow='OPTION_IMPLIED_VOLATILITY',
                                               useRTH=True,
                                               formatDate=1)
-        return History(self._translator.translate_bars(a.code, bars))
+        return History(self._translator.translate_bars(a.id.code, bars))
 
 
     def get_optionchain(self, a: Asset, expiration: datetime.date) -> List[Option]:
-        chains = self._broker.reqSecDefOptParams(a.contract.symbol,
+        chains = self._broker.reqSecDefOptParams(a.id.contract.symbol,
                                                  '',
-                                                 a.contract.secType,
-                                                 a.contract.conId)
+                                                 a.id.contract.secType,
+                                                 a.id.contract.conId)
 
         chain = next(c for c in chains
-                     if c.tradingClass == a.contract.symbol
+                     if c.tradingClass == a.id.contract.symbol
                      and c.exchange == 'SMART')
         
         self._log.debug(f'Total chain elements {len(chain)}')
@@ -350,7 +373,7 @@ class IBDataAdapter(DataAdapter):
             rights = ['P', 'C']
 
             # Create the options contracts
-            contracts = [IBOption(a.contract.symbol,
+            contracts = [IBOption(a.id.contract.symbol,
                                 format_ib_date(expiration),
                                 strike,
                                 right,

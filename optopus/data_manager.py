@@ -4,6 +4,7 @@ import datetime
 import logging
 from typing import Dict
 from optopus.asset import Asset, History, Measures
+from optopus.stock import Stock
 from optopus.data_objects import Portfolio
 from optopus.strategy import Strategy
 from optopus.computation import (assets_loop_computation,
@@ -22,8 +23,11 @@ class DataManager():
         self._da = data_adapter
         self._account = None
         self.portfolio = Portfolio()
-        self._assets = {code: Asset(code, asset_type, CURRENCY)
-                        for code, asset_type in watch_list.items()}
+        self._watch_list = watch_list
+        #self._assets = {code: Asset(code, asset_type, CURRENCY)
+        #                for code, asset_type in watch_list.items()}
+
+        
         
         self._strategies = {}
 
@@ -51,10 +55,10 @@ class DataManager():
     def update_account(self) -> None:
         self.account = self._da.get_account_values()
 
-    def initialize_assets(self) -> None:
+    def create_assets(self) -> None:
         """Retrieves the ids of the assets (contracts) from IB
         """
-        self._da.initialize_assets(self.assets)
+        self._assets = self._da.create_assets(self._watch_list)
         
     def update_assets(self) -> None:
         """Updates the current asset values.
@@ -99,23 +103,23 @@ class DataManager():
 
         for a in self._assets.values():
             a.measures = Measures(
-                                price_percentile=loop_m[a.code]['price_percentile'], 
-                                price_pct=loop_m[a.code]['price_pct'], 
-                                iv=loop_m[a.code]['iv'], 
-                                iv_rank=loop_m[a.code]['iv_rank'], 
-                                iv_percentile=loop_m[a.code]['iv_percentile'],
-                                iv_pct=loop_m[a.code]['iv_pct'], 
-                                stdev=vector_m[a.code]['stdev'],
-                                beta=vector_m[a.code]['beta'], 
-                                correlation=vector_m[a.code]['correlation'],
-                                directional_assumption=directional_m[a.code]['directional_assumption'])
+                                price_percentile=loop_m[a.id.code]['price_percentile'], 
+                                price_pct=loop_m[a.id.code]['price_pct'], 
+                                iv=loop_m[a.id.code]['iv'], 
+                                iv_rank=loop_m[a.id.code]['iv_rank'], 
+                                iv_percentile=loop_m[a.id.code]['iv_percentile'],
+                                iv_pct=loop_m[a.id.code]['iv_pct'], 
+                                stdev=vector_m[a.id.code]['stdev'],
+                                beta=vector_m[a.id.code]['beta'], 
+                                correlation=vector_m[a.id.code]['correlation'],
+                                directional_assumption=directional_m[a.id.code]['directional_assumption'])
 
     def assets_matrix(self, field: str) -> dict:
         """Returns a attribute from historical for every asset
         """
         d = {}
         for a in self._assets.values():
-            d[a.code] = [getattr(bar, field) for bar in a.price_history.values]
+            d[a.id.code] = [getattr(bar, field) for bar in a.price_history.values]
         return d
 
     def option_chain(self, code: str, expiration: datetime.date) -> None:

@@ -1,7 +1,15 @@
 from dataclasses import dataclass
 import datetime
-from typing import Tuple, Any
+from typing import Any, Tuple
 from optopus.common import AssetType, Currency, Direction
+
+
+@dataclass(frozen=True)
+class AssetId:
+    code: str
+    asset_type: AssetType
+    currency: Currency
+    contract: Any
 
 
 @dataclass(frozen=True)
@@ -66,14 +74,14 @@ class Measures:
     directional_assumption: Direction
 
 
-@dataclass
 class Asset:
-    code: str
-    asset_type: AssetType
-    currency: Currency
-    contract: Any = None
+    def __init__(self, id: AssetId):
+        self._id = id
+        self.current: Current = None
+        self.price_history: History = None
+        self.iv_history: History = None
+        self.measures: Measures = None
 
-    current: Current = None
-    price_history: History = None
-    iv_history: History = None
-    measures: Measures = None
+    @property
+    def id(self):
+        return self._id
