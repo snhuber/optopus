@@ -2,7 +2,8 @@
 import datetime
 from typing import List
 from optopus.asset import Asset
-from optopus.data_objects import (RightType, OwnershipType)
+from optopus.data_objects import OwnershipType
+from optopus.option import RightType
 from optopus.strategy import Strategy, StrategyType, Leg
 
 from optopus.strategies import ShortPutVerticalSpread

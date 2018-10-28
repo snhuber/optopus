@@ -5,20 +5,20 @@ from optopus.asset import AssetId, Asset, Current, Bar, History, Measures
 from optopus.common import AssetType, Currency, Direction
 
 
-def test_Asset_value_objet_init():
+def test_Asset_init():
     id = AssetId("SPY", AssetType.Stock, Currency.USDollar, None)
     assert id.code == "SPY"
     assert id.asset_type == AssetType.Stock
     assert id.currency == Currency.USDollar
 
 
-def test_Asset_value_objet_init_immutable():
+def test_Asset_init_immutable():
     id = AssetId("SPY", AssetType.Stock, Currency.USDollar, None)
     with pytest.raises(FrozenInstanceError):
         id.code = "XXX"
 
 
-def test_Current_value_object_init():
+def test_Current_init():
     test_time = datetime.datetime.now()
     current = Current(
         high=100.0,
@@ -47,7 +47,7 @@ def test_Current_value_object_init():
     assert current.time == test_time
 
 
-def test_Current_value_object_immutable():
+def test_Current_immutable():
     current = Current(
         high=100.0,
         low=50.0,
@@ -65,7 +65,7 @@ def test_Current_value_object_immutable():
         current.high = 300.0
 
 
-def test_Current_value_object_midprice():
+def test_Current_midprice():
     current = Current(
         high=100.0,
         low=50.0,
@@ -82,7 +82,7 @@ def test_Current_value_object_midprice():
     assert current.midpoint == 2.5
 
 
-def test_Current_value_object_market_price_bid_last_ask():
+def test_Current_market_price_bid_last_ask():
     current = Current(
         high=100.0,
         low=50.0,
@@ -99,7 +99,7 @@ def test_Current_value_object_market_price_bid_last_ask():
     assert current.market_price == 2.75
 
 
-def test_Current_value_object_market_price_bid_ask_last():
+def test_Current_market_price_bid_ask_last():
     current = Current(
         high=100.0,
         low=50.0,
@@ -116,7 +116,7 @@ def test_Current_value_object_market_price_bid_ask_last():
     assert current.market_price == 2.5
 
 
-def test_Current_value_object_market_price_1():
+def test_Current_market_price_1():
     current = Current(
         high=100.0,
         low=50.0,
@@ -133,7 +133,7 @@ def test_Current_value_object_market_price_1():
     assert current.market_price == 75.0
 
 
-def test_Bar_value_object_init():
+def test_Bar_init():
     test_time = datetime.datetime.now()
     bar = Bar(
         count=44,
@@ -155,7 +155,7 @@ def test_Bar_value_object_init():
     assert bar.time == test_time
 
 
-def test_Bar_value_object_immutable():
+def test_Bar_immutable():
     bar = Bar(
         count=44,
         open=50.0,
@@ -170,7 +170,7 @@ def test_Bar_value_object_immutable():
         bar.count = 45
 
 
-def test_History_value_object_init():
+def test_History_init():
     bar = Bar(
         count=44,
         open=50.0,
@@ -185,7 +185,7 @@ def test_History_value_object_init():
     assert len(history.values) == 1
 
 
-def test_History_value_object_immutable():
+def test_History_immutable():
     bar = Bar(
         count=44,
         open=50.0,
@@ -202,7 +202,7 @@ def test_History_value_object_immutable():
         history.values = (bar, bar)
 
 
-def test_Measures_value_object_init():
+def test_Measures_init():
     m = Measures(
         iv=0.45,
         iv_rank=0.78,
@@ -227,7 +227,7 @@ def test_Measures_value_object_init():
     assert m.directional_assumption == Direction.Bullish
 
 
-def test_Measures_value_object_immutable():
+def test_Measures_immutable():
     m = Measures(
         iv=0.45,
         iv_rank=0.78,
@@ -244,7 +244,7 @@ def test_Measures_value_object_immutable():
         m.iv = 0.5
 
 
-def test_Asset_entity_init():
+def test_Asset_init():
     id = AssetId("SPY", AssetType.Stock, Currency.USDollar, None)
     asset = Asset(id)
     asset.current = Current(

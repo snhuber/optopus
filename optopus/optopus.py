@@ -13,7 +13,8 @@ from optopus.data_manager import DataManager
 from optopus.order_manager import OrderManager
 from optopus.watch_list import WATCH_LIST
 from optopus.asset import Asset
-from optopus.data_objects import (Option, Account, Portfolio)
+from optopus.data_objects import Account, Portfolio
+from optopus.option import Option
 from optopus.strategy import Strategy
 from optopus.settings import (SLEEP_LOOP, EXPIRATIONS, PRESERVED_CASH_FACTOR,
                               MAXIMUM_RISK_FACTOR)

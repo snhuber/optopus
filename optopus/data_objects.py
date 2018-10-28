@@ -20,16 +20,7 @@ class OrderType(Enum):
     Stop = "STP"
 
 
-class RightType(Enum):
-    Call = "C"
-    Put = "P"
 
-
-class OptionMoneyness(Enum):
-    AtTheMoney = "ATM"
-    InTheMoney = "ITM"
-    OutTheMoney = "OTM"
-    NA = "NA"
 
 
 class OwnershipType(Enum):
@@ -56,52 +47,13 @@ class OrderStatus(Enum):
 
 
 @dataclass(frozen=True)
-class Option:
-    code: str
-    asset_type: AssetType
-    expiration: datetime.date
-    strike: int
-    right: RightType
-    high: float = None
-    low: float = None
-    close: float = None
-    bid: float = None
-    bid_size: float = None
-    ask: float = None
-    ask_size: float = None
-    last: float = None
-    last_size: float = None
-    option_price: float = None
-    currency: Currency = None
-    multiplier: int = None
-    volume: int = None
-    delta: float = None
-    gamma: float = None
-    theta: float = None
-    vega: float = None
-    iv: float = None
-    underlying_price: float = None
-    underlying_dividends: float = None
-    time: datetime.datetime = None
-    contract: Any = None
-
-    @property
-    def midpoint(self):
-        return (self.bid + self.ask) / 2
-
-    @property
-    def DTE(self):
-        return (self.expiration - datetime.datetime.now().date()).days
-
-
-@dataclass(frozen=True)
 class Position:
     code: str
     asset_type: AssetType
     ownership: OwnershipType
     expiration: datetime.date
     strike: int
-    right: RightType
+    #right: RightType
     quantity: int
     average_cost: float
     option_price: float

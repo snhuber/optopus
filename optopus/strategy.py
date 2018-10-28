@@ -3,7 +3,8 @@ from dataclasses import dataclass
 import datetime
 from enum import Enum
 from typing import List, Dict
-from optopus.data_objects import Option, OwnershipType, Currency
+from optopus.data_objects import OwnershipType
+from optopus.option import Option
 
 class StrategyType(Enum):
     ShortPut = 'SP'
@@ -18,7 +19,7 @@ class Leg:
     # TODO: Become Leg class immutable (filled & commission are position fields?)
     #filled: int
     #commission: float
-    created: datetime.datetime = datetime.datetime.now()
+    #created: datetime.datetime = datetime.datetime.now()
 
     @property
     def price(self):
@@ -34,11 +35,11 @@ class Strategy:
     code: str
     strategy_type: StrategyType
     ownership: OwnershipType
-    currency: Currency
+    #currency: Currency
     take_profit_factor: float
     multiplier: int
     legs: Dict[str, Leg]    
-    created: datetime.datetime = datetime.datetime.now()
+    #created: datetime.datetime = datetime.datetime.now()
 
     @property
     def strategy_id(self):

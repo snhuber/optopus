@@ -12,22 +12,21 @@ from pathlib import Path
 
 from ib_insync.ib import IB, Contract
 from ib_insync.contract import Index as IBIndex, Option as IBOption, Stock as IBStock
-from ib_insync.objects import (AccountValue, Position as IBPosition, Fill,
-                               CommissionReport, ComboLeg)
+from ib_insync.objects import (
+    AccountValue,
+    Position as IBPosition,
+    Fill,
+    CommissionReport,
+    ComboLeg,
+)
 from ib_insync.order import Trade as IBTrade, LimitOrder, StopOrder
 from optopus.asset import AssetId, Asset, Current, History, Bar
 from optopus.common import AssetType
-from optopus.data_objects import (Option,
-                                  RightType,
-                                  OptionMoneyness,
-                                  Position, OwnershipType,
-                                  Account,
-                                  OrderStatus,
-                                  Trade)
+from optopus.data_objects import Position, OwnershipType, Account, OrderStatus, Trade
+from optopus.option import Option, OptionId, RightType
 from optopus.strategy import StrategyType, Strategy
 from optopus.data_manager import DataAdapter
-from optopus.settings import (CURRENCY, HISTORICAL_YEARS, DTE_MAX, DTE_MIN,
-                              EXPIRATIONS)
+from optopus.settings import CURRENCY, HISTORICAL_YEARS, DTE_MAX, DTE_MIN, EXPIRATIONS
 from optopus.stock import Stock
 from optopus.utils import parse_ib_date, format_ib_date
 
@@ -43,145 +42,159 @@ class IBBrokerAdapter:
         self._translator = IBTranslator()
         self._data_adapter = IBDataAdapter(self._broker, self._translator)
 
-        self.emit_order_status = None  
+        self.emit_order_status = None
         self._broker.orderStatusEvent += self._onOrderStatusEvent
-
 
     def connect(self) -> None:
         self._broker.connect(self._host, self._port, self._client)
 
-    def disconnect(self) ->None:
+    def disconnect(self) -> None:
         self._broker.disconnect()
 
     def sleep(self, time: float) -> None:
         self._broker.sleep(time)
-        
+
     def _onOrderStatusEvent(self, trade: IBTrade):
         self.emit_order_status(self._translator.translate_trade(trade))
 
     def _reverse_ownership(sefl, ownership):
-        return 'BUY' if ownership == 'SELL' else 'SELL'
-    
+        return "BUY" if ownership == "SELL" else "SELL"
+
     def open_strategy(self, strategy: Strategy) -> None:
         """Place a new strategy at the market
         """
 
-        ownership = 'BUY' if strategy.ownership == OwnershipType.Buyer else 'SELL'
-        reverse_ownership = 'BUY' if ownership == 'SELL' else 'SELL'
-        
+        ownership = "BUY" if strategy.ownership == OwnershipType.Buyer else "SELL"
+        reverse_ownership = "BUY" if ownership == "SELL" else "SELL"
+
         contract = Contract()
         contract.symbol = strategy.code
-        contract.secType = 'BAG'
-        contract.exchange = 'SMART'
+        contract.secType = "BAG"
+        contract.exchange = "SMART"
         contract.currency = strategy.currency.value
         order_comboLegs = []
         tp_sl_comboLegs = []
-        
 
         for leg in strategy.legs.values():
             leg_order = ComboLeg()
             leg_order.conId = leg.option.contract.conId
             leg_order.ratio = leg.ratio
-            leg_order.action = 'BUY' if leg.ownership == OwnershipType.Buyer else 'SELL'
-            #contract.comboLegs.append(leg_order)
-            order_comboLegs.append(leg_order)           
-  
+            leg_order.action = "BUY" if leg.ownership == OwnershipType.Buyer else "SELL"
+            # contract.comboLegs.append(leg_order)
+            order_comboLegs.append(leg_order)
+
         for leg in strategy.legs.values():
             leg_tp_sl = ComboLeg()
             leg_tp_sl.conId = leg.option.contract.conId
             leg_tp_sl.ratio = leg.ratio
-            leg_tp_sl.action = 'SELL' if leg.ownership == OwnershipType.Buyer else 'BUY' # reverse
-            #contract.comboLegs.append(leg_order)
+            leg_tp_sl.action = (
+                "SELL" if leg.ownership == OwnershipType.Buyer else "BUY"
+            )  # reverse
+            # contract.comboLegs.append(leg_order)
             tp_sl_comboLegs.append(leg_tp_sl)
 
         contract.comboLegs = order_comboLegs
-        order = LimitOrder(action='BUY' if strategy.ownership == OwnershipType.Buyer else 'SELL',
-                           totalQuantity=strategy.quantity,
-                           lmtPrice=strategy.entry_price,
-                           orderRef=strategy.strategy_id,
-                           orderId=self._broker.client.getReqId(),
-                           tif='GTC',
-                           transmit=True) # Must be False
-        print('ORDER SENDED')
+        order = LimitOrder(
+            action="BUY" if strategy.ownership == OwnershipType.Buyer else "SELL",
+            totalQuantity=strategy.quantity,
+            lmtPrice=strategy.entry_price,
+            orderRef=strategy.strategy_id,
+            orderId=self._broker.client.getReqId(),
+            tif="GTC",
+            transmit=True,
+        )  # Must be False
+        print("ORDER SENDED")
         self._broker.placeOrder(contract, order)
 
-        #contract.comboLegs = tp_sl_comboLegs
-        
-        #print('take_profit_order', strategy.take_profit_price)
-        take_profit = LimitOrder(action='SELL' if strategy.ownership == OwnershipType.Buyer else 'BUY', # reverse
-                                 totalQuantity=strategy.quantity,
-                                 lmtPrice=strategy.take_profit_price,
-                                 #lmtPrice = -0.1,
-                                 orderRef=strategy.strategy_id + '_TP',
-                                 orderId=self._broker.client.getReqId(),
-                                 tif='GTC',
-                                 transmit=True,
-                                 parentId=order.orderId)
+        # contract.comboLegs = tp_sl_comboLegs
+
+        # print('take_profit_order', strategy.take_profit_price)
+        take_profit = LimitOrder(
+            action="SELL"
+            if strategy.ownership == OwnershipType.Buyer
+            else "BUY",  # reverse
+            totalQuantity=strategy.quantity,
+            lmtPrice=strategy.take_profit_price,
+            # lmtPrice = -0.1,
+            orderRef=strategy.strategy_id + "_TP",
+            orderId=self._broker.client.getReqId(),
+            tif="GTC",
+            transmit=True,
+            parentId=order.orderId,
+        )
         self._broker.placeOrder(contract, take_profit)
 
 
 class IBTranslator:
     """Translate the IB tags and values to Ocptopus"""
+
     def __init__(self) -> None:
-        self._sectype_translation = {'STK': AssetType.Stock,
-                                     'OPT': AssetType.Option,
-                                     'FUT': AssetType.Future,
-                                     'CASH': AssetType.Future,
-                                     'IND': AssetType.Index,
-                                     'CFD': AssetType.CFD,
-                                     'BOND': AssetType.Bond,
-                                     'CMDTY': AssetType.Commodity,
-                                     'FOP': AssetType.FuturesOption,
-                                     'FUND': AssetType.MutualFund,
-                                     'IOPT': AssetType.Warrant}
+        self._sectype_translation = {
+            "STK": AssetType.Stock,
+            "OPT": AssetType.Option,
+            "FUT": AssetType.Future,
+            "CASH": AssetType.Future,
+            "IND": AssetType.Index,
+            "CFD": AssetType.CFD,
+            "BOND": AssetType.Bond,
+            "CMDTY": AssetType.Commodity,
+            "FOP": AssetType.FuturesOption,
+            "FUND": AssetType.MutualFund,
+            "IOPT": AssetType.Warrant,
+        }
 
-        self._right_translation = {'C': RightType.Call,
-                                   'P': RightType.Put}
+        self._right_translation = {"C": RightType.Call, "P": RightType.Put}
 
-        self._order_status_translation = {'ApiPending': OrderStatus.APIPending,
-                                          'PendingSubmit': OrderStatus.PendingSubmit,
-                                          'PendingCancel': OrderStatus.PendingCancel,
-                                          'PreSubmitted': OrderStatus.PreSubmitted,
-                                          'Submitted': OrderStatus.Submitted,
-                                          'ApiCancelled': OrderStatus.APICancelled,
-                                          'Cancelled': OrderStatus.Cancelled,
-                                          'Filled': OrderStatus.Filled,
-                                          'Inactive': OrderStatus.Inactive}
+        self._order_status_translation = {
+            "ApiPending": OrderStatus.APIPending,
+            "PendingSubmit": OrderStatus.PendingSubmit,
+            "PendingCancel": OrderStatus.PendingCancel,
+            "PreSubmitted": OrderStatus.PreSubmitted,
+            "Submitted": OrderStatus.Submitted,
+            "ApiCancelled": OrderStatus.APICancelled,
+            "Cancelled": OrderStatus.Cancelled,
+            "Filled": OrderStatus.Filled,
+            "Inactive": OrderStatus.Inactive,
+        }
 
-        self._ownership_translation = {'BUY': OwnershipType.Buyer,
-                                       'SELL': OwnershipType.Seller}
-        
-        self._strategy_translation = {'SP': StrategyType.ShortPut,
-                                      'SPVS': StrategyType.ShortPutVerticalSpread,
-                                      'SCVS': StrategyType.ShortCallVerticalSpread}
+        self._ownership_translation = {
+            "BUY": OwnershipType.Buyer,
+            "SELL": OwnershipType.Seller,
+        }
+
+        self._strategy_translation = {
+            "SP": StrategyType.ShortPut,
+            "SPVS": StrategyType.ShortPutVerticalSpread,
+            "SCVS": StrategyType.ShortCallVerticalSpread,
+        }
 
     def translate_account(self, values: List[AccountValue]) -> Account:
         account = Account()
         for v in values:
             if v.currency == CURRENCY.value:
-                if v.tag == 'AvailableFunds':
+                if v.tag == "AvailableFunds":
                     account.funds = float(v.value)
-                elif v.tag == 'BuyingPower':
+                elif v.tag == "BuyingPower":
                     account.buying_power = float(v.value)
-                elif v.tag == 'TotalCashValue':
+                elif v.tag == "TotalCashValue":
                     account.cash = float(v.value)
-                elif v.tag == 'DayTradesRemaining':
+                elif v.tag == "DayTradesRemaining":
                     account.max_day_trades = float(v.value)
-                elif v.tag == 'NetLiquidation':
+                elif v.tag == "NetLiquidation":
                     account.net_liquidation = float(v.value)
-                elif v.tag == 'InitMarginReq':
+                elif v.tag == "InitMarginReq":
                     account.initial_margin = float(v.value)
-                elif v.tag == 'MaintMarginReq':
+                elif v.tag == "MaintMarginReq":
                     account.maintenance_margin = float(v.value)
-                elif v.tag == 'ExcessLiquidity':
+                elif v.tag == "ExcessLiquidity":
                     account.excess_liquidity = float(v.value)
-                elif v.tag == 'Cushion':
+                elif v.tag == "Cushion":
                     account.cushion = float(v.value)
-                elif v.tag == 'GrossPositionValue':
+                elif v.tag == "GrossPositionValue":
                     account.gross_position_value = float(v.value)
-                elif v.tag == 'EquityWithLoanValue':
+                elif v.tag == "EquityWithLoanValue":
                     account.equity_with_loan = float(v.value)
-                elif v.tag == 'SMA':
+                elif v.tag == "SMA":
                     account.SMA = float(v.value)
         return account
 
@@ -195,33 +208,35 @@ class IBTranslator:
             ownership = OwnershipType.Seller
         else:
             ownership = None
-        
+
         expiration = item.contract.lastTradeDateOrContractMonth
         if expiration:
             expiration = parse_ib_date(expiration)
         else:
             expiration = None
-            
+
         right = item.contract.right
         if right:
             right = self._right_translation[right]
         else:
             right = None
 
-        position = PositionData(code=code,
-                                asset_type=asset_type,
-                                expiration=expiration,
-                                ownership=ownership,
-                                quantity=abs(item.position),
-                                strike=item.contract.strike,
-                                right=right,
-                                average_cost=item.avgCost)
+        position = PositionData(
+            code=code,
+            asset_type=asset_type,
+            expiration=expiration,
+            ownership=ownership,
+            quantity=abs(item.position),
+            strike=item.contract.strike,
+            right=right,
+            average_cost=item.avgCost,
+        )
         return position
 
     def translate_trade(self, item: IBTrade) -> Trade:
 
-        #print(item)
-        
+        # print(item)
+
         order_id = item.order.orderRef
         status = self._order_status_translation[item.orderStatus.status]
         remaining = item.orderStatus.remaining
@@ -230,23 +245,24 @@ class IBTranslator:
         except AttributeError as e:
             commission = None
 
-        trade = Trade(order_id=order_id,
-                          status=status,
-                          remaining=remaining,
-                          commission=commission)
+        trade = Trade(
+            order_id=order_id, status=status, remaining=remaining, commission=commission
+        )
         return trade
 
     def translate_bars(self, code: str, ibbars: list) -> list:
         bars = []
         for ibb in ibbars:
-            b = Bar(time=ibb.date,
-                    open=ibb.open,
-                    high=ibb.high,
-                    low=ibb.low,
-                    close=ibb.close,
-                    average=ibb.average,
-                    volume=ibb.volume,
-                    count=ibb.barCount)
+            b = Bar(
+                time=ibb.date,
+                open=ibb.open,
+                high=ibb.high,
+                low=ibb.low,
+                close=ibb.close,
+                average=ibb.average,
+                volume=ibb.volume,
+                count=ibb.barCount,
+            )
             bars.append(b)
         return tuple(bars)
 
@@ -270,117 +286,118 @@ class IBDataAdapter(DataAdapter):
             positions_data[pd.position_id] = pd
         return positions_data
 
-    def initialize_assets(self, assets: Dict[str, Asset]) -> None:
-        contracts = []
-        for asset in assets.values():
-            if asset.asset_type == AssetType.Index:
-                contracts.append(IBIndex(asset.code,
-                                       currency=CURRENCY.value))
-            elif asset.asset_type == AssetType.Stock:
-                contracts.append(IBStock(asset.code,
-                                       exchange='SMART',
-                                       currency=CURRENCY.value))
-        # It works if len(contracts) < 50. IB limit.
-        q_contracts = self._broker.qualifyContracts(*contracts)
-        if len(q_contracts) == len(assets):
-            for c in q_contracts:
-                assets[c.symbol].contract = c
-        else:
-            raise ValueError('Error: ambiguous contracts')
-
     def create_assets(self, watchlist: Dict[str, AssetType]) -> List[Asset]:
         contracts = []
         for code, value in watchlist.items():
             if value == AssetType.Stock:
-                contracts.append(IBStock(code, exchange='SMART', currency=CURRENCY.value))
+                contracts.append(
+                    IBStock(code, exchange="SMART", currency=CURRENCY.value)
+                )
         # It works if len(contracts) < 50. IB limit.
         q_contracts = self._broker.qualifyContracts(*contracts)
         if len(q_contracts) == len(watchlist):
             assets = {}
             for qc in q_contracts:
-                if qc.secType == 'STK':
-                    # TODO: The currency value depends on 
-                    id = AssetId(code = qc.symbol, 
-                                asset_type = AssetType.Stock, 
-                                currency = CURRENCY, 
-                                contract = qc)
+                if qc.secType == "STK":
+                    # TODO: The currency value depends on
+                    id = AssetId(
+                        code=qc.symbol,
+                        asset_type=AssetType.Stock,
+                        currency=CURRENCY,
+                        contract=qc,
+                    )
                     assets[id.code] = Stock(id)
         else:
-            raise ValueError('Error: ambiguous contracts')
-        
-        return assets
+            raise ValueError("Error: ambiguous contracts")
 
+        return assets
 
     def update_assets(self, assets: Dict[str, Asset]) -> Dict[str, Current]:
         contracts = [a.id.contract for a in assets.values()]
         tickers = self._broker.reqTickers(*contracts)
         current_values = {}
         for t in tickers:
-            c = Current(high=t.high,
-                        low=t.low,
-                        close=t.close,
-                        bid=t.bid,
-                        bid_size=t.bidSize,
-                        ask=t.ask,
-                        ask_size=t.askSize,
-                        last=t.last,
-                        last_size=t.lastSize,
-                        volume=t.volume,
-                        time=t.time)
+            c = Current(
+                high=t.high,
+                low=t.low,
+                close=t.close,
+                bid=t.bid,
+                bid_size=t.bidSize,
+                ask=t.ask,
+                ask_size=t.askSize,
+                last=t.last,
+                last_size=t.lastSize,
+                volume=t.volume,
+                time=t.time,
+            )
             current_values[t.contract.symbol] = c
         return current_values
 
     def get_price_history(self, a: Asset) -> None:
-        bars = self._broker.reqHistoricalData(a.id.contract,
-                                              endDateTime='',
-                                              durationStr=str(HISTORICAL_YEARS) + ' Y',
-                                              barSizeSetting='1 day',
-                                              whatToShow='TRADES',
-                                              useRTH=True,
-                                              formatDate=1)
+        bars = self._broker.reqHistoricalData(
+            a.id.contract,
+            endDateTime="",
+            durationStr=str(HISTORICAL_YEARS) + " Y",
+            barSizeSetting="1 day",
+            whatToShow="TRADES",
+            useRTH=True,
+            formatDate=1,
+        )
         return History(self._translator.translate_bars(a.id.code, bars))
 
     def get_iv_history(self, a: Asset) -> None:
-        bars = self._broker.reqHistoricalData(a.id.contract,
-                                              endDateTime='',
-                                              durationStr=str(HISTORICAL_YEARS) + ' Y',
-                                              barSizeSetting='1 day',
-                                              whatToShow='OPTION_IMPLIED_VOLATILITY',
-                                              useRTH=True,
-                                              formatDate=1)
+        bars = self._broker.reqHistoricalData(
+            a.id.contract,
+            endDateTime="",
+            durationStr=str(HISTORICAL_YEARS) + " Y",
+            barSizeSetting="1 day",
+            whatToShow="OPTION_IMPLIED_VOLATILITY",
+            useRTH=True,
+            formatDate=1,
+        )
         return History(self._translator.translate_bars(a.id.code, bars))
 
+    def get_optionchain(self, asset: Asset, expiration: datetime.date) -> List[Option]:
+        chains = self._broker.reqSecDefOptParams(
+            asset.id.contract.symbol,
+            "",
+            asset.id.contract.secType,
+            asset.id.contract.conId,
+        )
 
-    def get_optionchain(self, a: Asset, expiration: datetime.date) -> List[Option]:
-        chains = self._broker.reqSecDefOptParams(a.id.contract.symbol,
-                                                 '',
-                                                 a.id.contract.secType,
-                                                 a.id.contract.conId)
+        chain = next(
+            c
+            for c in chains
+            if c.tradingClass == asset.id.contract.symbol and c.exchange == "SMART"
+        )
 
-        chain = next(c for c in chains
-                     if c.tradingClass == a.id.contract.symbol
-                     and c.exchange == 'SMART')
-        
-        self._log.debug(f'Total chain elements {len(chain)}')
+        self._log.debug(f"Total chain elements {len(chain)}")
         if chain:
-            underlying_price = a.market_price
-            #width = (a.current.stdev * 2) * underlying_price
+            underlying_price = asset.market_price
+            # width = (a.current.stdev * 2) * underlying_price
             width = underlying_price * 0.1
             min_strike_price = underlying_price - width
             max_strike_price = underlying_price + width
-            strikes = sorted(strike for strike in chain.strikes
-                       if min_strike_price < strike < max_strike_price)
-            rights = ['P', 'C']
+            strikes = sorted(
+                strike
+                for strike in chain.strikes
+                if min_strike_price < strike < max_strike_price
+            )
+            rights = ["P", "C"]
 
             # Create the options contracts
-            contracts = [IBOption(a.id.contract.symbol,
-                                format_ib_date(expiration),
-                                strike,
-                                right,
-                                'SMART')
-                                for right in rights
-                                #for expiration in expirations
-                                for strike in strikes]
+            contracts = [
+                IBOption(
+                    asset.id.contract.symbol,
+                    format_ib_date(expiration),
+                    strike,
+                    right,
+                    "SMART",
+                )
+                for right in rights
+                # for expiration in expirations
+                for strike in strikes
+            ]
             q_contracts = []
             # IB has a limit of 50 requests per second
             for c in chunks(contracts, 50):
@@ -388,84 +405,82 @@ class IBDataAdapter(DataAdapter):
                 self._broker.sleep(1)
 
             tickers = []
-            #print("Contracts: {} Unqualified: {}".
+            # print("Contracts: {} Unqualified: {}".
             #      format(len(contracts), len(contracts) - len(q_contracts)))
-            
+
             for q in chunks(q_contracts, 50):
                 tickers += self._broker.reqTickers(*q)
                 self._broker.sleep(1)
 
-            return self.get_options(q_contracts)
+            return self.create_options(asset, q_contracts)
 
-    def get_options(self, q_contracts: List[Contract]) -> Dict[str, Option]:
-            tickers = []
-            for q in chunks(q_contracts, 50):
-                tickers += self._broker.reqTickers(*q)
-                self._broker.sleep(1)
-            #options = []
-            options = {}
-            for t in tickers:
-                code = t.contract.symbol
-                expiration = parse_ib_date(t.contract.lastTradeDateOrContractMonth)
-                strike = float(t.contract.strike)
-                right = RightType.Call if t.contract.right =='C' else RightType.Put
-                delta = gamma = theta = vega = option_price = \
-                implied_volatility = underlying_price = \
-                underlying_dividends = None
+    def create_options(
+        self, asset: Asset, q_contracts: List[Contract]
+    ) -> Dict[str, Option]:
+        tickers = []
+        for q in chunks(q_contracts, 50):
+            tickers += self._broker.reqTickers(*q)
+            self._broker.sleep(1)
+        # options = []
+        options = {}
+        for t in tickers:
+            expiration = parse_ib_date(t.contract.lastTradeDateOrContractMonth)
+            strike = float(t.contract.strike)
+            right = RightType.Call if t.contract.right == "C" else RightType.Put
+            delta = gamma = theta = vega = None
+            option_price = (
+                implied_volatility
+            ) = underlying_price = underlying_dividends = None
 
-                if t.modelGreeks:
-                    delta = t.modelGreeks.delta
-                    gamma = t.modelGreeks.gamma
-                    theta = t.modelGreeks.theta
-                    vega = t.modelGreeks.vega
-                    option_price = t.modelGreeks.optPrice
-                    implied_volatility = t.modelGreeks.impliedVol
-                    underlying_price = t.modelGreeks.undPrice
-                    underlying_dividends = t.modelGreeks.pvDividend
+            if t.modelGreeks:
+                delta = t.modelGreeks.delta
+                gamma = t.modelGreeks.gamma
+                theta = t.modelGreeks.theta
+                vega = t.modelGreeks.vega
+                option_price = t.modelGreeks.optPrice
+                implied_volatility = t.modelGreeks.impliedVol
+                underlying_price = t.modelGreeks.undPrice
+                underlying_dividends = t.modelGreeks.pvDividend
+            opt_id = OptionId(
+                underlying_id=AssetId,
+                asset_type=AssetType.Option,
+                expiration=expiration,
+                strike=strike,
+                right=right,
+                multiplier=t.multiplier,
+                contract=t.contract,
+            )
+            opt = Option(
+                option_id = opt_id,
+                high=t.high,
+                low=t.low,
+                close=t.close,
+                bid=t.bid,
+                bid_size=t.bidSize,
+                ask=t.ask,
+                ask_size=t.askSize,
+                last=t.last,
+                last_size=t.lastSize,
+                option_price=option_price,
+                volume=t.volume,
+                delta=delta,
+                gamma=gamma,
+                theta=theta,
+                vega=vega,
+                implied_volatility=implied_volatility,
+                underlying_price=underlying_price,
+                underlying_dividends=underlying_dividends,
+                time=t.time,
+            )
 
-                opt = Option(
-                        code=code,
-                        asset_type=AssetType.Option,
-                        expiration=expiration,
-                        strike=strike,
-                        right=right,
-                        high=t.high,
-                        low=t.low,
-                        close=t.close,
-                        bid=t.bid,
-                        bid_size=t.bidSize,
-                        ask=t.ask,
-                        ask_size=t.askSize,
-                        last=t.last,
-                        last_size=t.lastSize,
-                        option_price=option_price,
-                        currency=CURRENCY,
-                        volume=t.volume,
-                        delta=delta,
-                        gamma=gamma,
-                        theta=theta,
-                        vega=vega,
-                        implied_volatility=implied_volatility,
-                        underlying_price=underlying_price,
-                        underlying_dividends=underlying_dividends,
-                        time=t.time,
-                        contract=t.contract)
-
-                #options.append(opt)
-                options[f'{strike}{right.value}'] = opt
-            return options
-
-
-def is_number(s: str) -> bool:
-    try:
-        float(s)
-        return True
-    except Exception as e:
-        return False
+            # options.append(opt)
+            options[f"{strike}{right.value}"] = opt
+        return options
 
 
 def chunks(l: list, n: int) -> list:
     # For item i in a range that is a lenght of l
     for i in range(0, len(l), n):
         # Create an index range for l of n items:
-        yield l[i:i+n]
+        yield l[i : i + n]
+
