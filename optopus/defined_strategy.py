@@ -5,25 +5,7 @@ from optopus.common import Currency
 from optopus.data_objects import OwnershipType
 from optopus.option import Option 
 from optopus.strategy import Strategy, StrategyType, Leg
-class DefinedStrategy:
-    def __init__(self):
-        self._created: datetime.datetime = datetime.datetime.now()
-        self._opened: datetime.datetime = None
-        self._closed: datetime.datetime = None
-        # TODO: quantity must be in smart_strategy
-        self._quantity: int = None
 
-    @property
-    def created(self):
-        return self.created
-
-    @property
-    def opened(self):
-        return self.opened
-
-    @property 
-    def closed(self):
-        return self._closed
 
 
 class ShortPutVerticalSpread:

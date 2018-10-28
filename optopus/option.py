@@ -32,25 +32,25 @@ class OptionId:
 @dataclass(frozen=True)
 class Option:
     id: OptionId
-    high: float = None
-    low: float = None
-    close: float = None
-    bid: float = None
-    bid_size: float = None
-    ask: float = None
-    ask_size: float = None
-    last: float = None
-    last_size: float = None
-    option_price: float = None
-    volume: int = None
-    delta: float = None
-    gamma: float = None
-    theta: float = None
-    vega: float = None
-    iv: float = None
-    underlying_price: float = None
-    underlying_dividends: float = None
-    time: datetime.datetime = None
+    high: float 
+    low: float
+    close: float
+    bid: float
+    bid_size: float
+    ask: float
+    ask_size: float
+    last: float
+    last_size: float
+    option_price: float
+    volume: int
+    delta: float
+    gamma: float
+    theta: float
+    vega: float
+    iv: float
+    underlying_price: float
+    underlying_dividends: float
+    time: datetime.datetime
 
     @property
     def midpoint(self):
@@ -58,5 +58,5 @@ class Option:
 
     @property
     def DTE(self):
-        return (self.expiration - datetime.datetime.now().date()).days
+        return (self.id.expiration - datetime.date.today()).days
 

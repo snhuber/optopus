@@ -20,6 +20,11 @@ class Currency(Enum):
     Euro = "EUR"
 
 
+class OwnershipType(Enum):
+    Buyer = 1
+    Seller = -1
+
+
 class Direction(Enum):
     Bullish = "Bullish"
     Neutral = "Neutral"

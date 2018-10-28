@@ -3,7 +3,7 @@ import datetime
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Tuple
-from optopus.common import AssetType, Currency
+from optopus.common import AssetType, Currency, OwnershipType
 
 
 # TODO: Create a new file asset.py for Asset, Current, Measures, History...
@@ -18,14 +18,6 @@ class OrderType(Enum):
     Market = "MTK"
     Limit = "LMT"
     Stop = "STP"
-
-
-
-
-
-class OwnershipType(Enum):
-    Buyer = 1
-    Seller = -1
 
 
 class OrderRol(Enum):
@@ -53,7 +45,7 @@ class Position:
     ownership: OwnershipType
     expiration: datetime.date
     strike: int
-    #right: RightType
+    # right: RightType
     quantity: int
     average_cost: float
     option_price: float
