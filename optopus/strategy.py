@@ -27,6 +27,10 @@ class Leg:
     def price(self):
         return self.option.midpoint
 
+    @property
+    def strike(self):
+        return self.option.id.strike
+
     # FIXME: I have to use a leg_id property?
 
     # @property
@@ -50,12 +54,15 @@ class Strategy:
     legs: Tuple[Leg]
     strategy_type: StrategyType
     ownership: OwnershipType
-    take_profit_factor: float
 
     # FIXME: Do I need a strategy_id?
     # @property
     # def strategy_id(self):
     #    return self.code + ' ' + self.created.strftime('%d-%m-%Y %H:%M:%S')
+    @property
+    def multiplier(self):
+        return self.legs[0].option.id.multiplier
+
 
 
 class DefinedStrategy:

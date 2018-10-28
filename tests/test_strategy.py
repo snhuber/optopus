@@ -57,8 +57,7 @@ def strategy(leg):
     strategy = Strategy(
         legs=legs,
         strategy_type=StrategyType.ShortPutVerticalSpread,
-        ownership=OwnershipType.Buyer,
-        take_profit_factor=0.5,
+        ownership=OwnershipType.Buyer
     )
     return strategy
 
@@ -80,19 +79,20 @@ def test_Leg_price(option):
     leg = Leg(option=option, ownership=OwnershipType.Buyer, ratio=1)
     assert leg.price == 6.5
 
+def test_Leg_strike(option):
+    leg = Leg(option=option, ownership=OwnershipType.Buyer, ratio=1)
+    assert leg.strike == 100
 
 def test_Strategy_init(leg):
     legs = (leg,)
     strategy = Strategy(
         legs=legs,
         strategy_type=StrategyType.ShortPutVerticalSpread,
-        ownership=OwnershipType.Buyer,
-        take_profit_factor=0.5,
+        ownership=OwnershipType.Buyer
     )
     assert strategy.legs[0].option.id.underlying_id.code == "SPY"
     assert strategy.strategy_type == StrategyType.ShortPutVerticalSpread
     assert strategy.ownership == OwnershipType.Buyer
-    assert strategy.take_profit_factor == 0.5
 
 
 def test_Strategy_immutable(leg):
@@ -100,11 +100,11 @@ def test_Strategy_immutable(leg):
     strategy = Strategy(
         legs=legs,
         strategy_type=StrategyType.ShortPutVerticalSpread,
-        ownership=OwnershipType.Buyer,
-        take_profit_factor=0.5,
+        ownership=OwnershipType.Buyer
+
     )
     with pytest.raises(FrozenInstanceError):
-        strategy.take_profit_factor = 0.3
+        strategy.ownership = OwnershipType.Seller
 
 
 def test_DefinedStrategy_init(strategy):
