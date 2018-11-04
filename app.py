@@ -15,7 +15,7 @@ host = '127.0.0.1'
 #port = 4002  # gateway
 port = 7497  # TWS PAPER TRADING
 #port = 7496 # TWS LIVE TRADING
-client = 10
+client = 11
 
 ib = IB()
 opt = Optopus(IBBrokerAdapter(ib, host, port, client))

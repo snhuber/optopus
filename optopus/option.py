@@ -54,7 +54,10 @@ class Option:
 
     @property
     def midpoint(self):
-        return (self.bid + self.ask) / 2
+        if not self.ask or not self.bid:
+            return None
+        else:
+            return (self.bid + self.ask) / 2
 
     @property
     def DTE(self):

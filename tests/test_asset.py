@@ -1,7 +1,7 @@
 from dataclasses import FrozenInstanceError
 import datetime
 import pytest
-from optopus.asset import AssetId, Asset, Current, Bar, History, Measures
+from optopus.asset import AssetId, Asset, Current, Bar, History, Measures, Stock
 from optopus.common import AssetType, Currency, Direction
 
 
@@ -301,3 +301,19 @@ def test_Asset_not_change_asset_id():
     asset = Asset(id)
     with pytest.raises(AttributeError):
         asset.id = id
+
+
+def test_Stock_entity_init():
+    id = AssetId("SPY", AssetType.Stock, Currency.USDollar, None)
+    stock = Stock(id)
+    assert stock.id.code == "SPY"
+    assert stock.id.asset_type == AssetType.Stock
+    assert stock.id.currency == Currency.USDollar
+
+
+def test_Stock_wrong_asset_type():
+    id = AssetId("SPY", AssetType.Option, Currency.USDollar, None)
+    with pytest.raises(ValueError):
+        Stock(id)
+
+# TODO: Index and ETF tests

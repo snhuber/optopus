@@ -1,8 +1,10 @@
 from enum import Enum
+from typing import NamedTuple
 
 
 class AssetType(Enum):
     Stock = "STK"
+    ETF = "ETF"
     Option = "OPT"
     Future = "FUT"
     Forex = "CASH"
@@ -18,6 +20,13 @@ class AssetType(Enum):
 class Currency(Enum):
     USDollar = "USD"
     Euro = "EUR"
+
+
+class AssetDefinition(NamedTuple):
+    code: str
+    asset_type: AssetType
+    exchange: str = None
+    currency: Currency = Currency.USDollar
 
 
 class OwnershipType(Enum):

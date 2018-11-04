@@ -59,7 +59,8 @@ class History:
     values: Tuple[Bar]
     created: datetime.datetime = datetime.datetime.now()
 
-
+# TODO: expected_range > Tuple(,)
+# https://www.optionsanimal.com/using-implied-volatility-determine-expected-range-stock/
 @dataclass(frozen=True)
 class Measures:
     price_percentile: float
@@ -71,6 +72,10 @@ class Measures:
     stdev: float
     beta: float
     correlation: float
+    rsi: Tuple
+    rsi_sma: Tuple
+    sma1: Tuple
+    sma2: Tuple
     directional_assumption: Direction
 
 
@@ -85,3 +90,22 @@ class Asset:
     @property
     def id(self):
         return self._id
+
+
+class Stock(Asset):
+    def __init__(self, id: AssetId):
+        if not id.asset_type == AssetType.Stock:
+            raise ValueError("Wrong AssetType for stock asset")
+        super().__init__(id)
+
+class ETF(Asset):
+    def __init__(self, id: AssetId):
+        if not id.asset_type == AssetType.ETF:
+            raise ValueError("Wrong AssetType for stock asset")
+        super().__init__(id)
+
+class Index(Asset):
+    def __init__(self, id: AssetId):
+        if not id.asset_type == AssetType.Index:
+            raise ValueError("Wrong AssetType for stock asset")
+        super().__init__(id)

@@ -7,7 +7,7 @@ Created on Sun Aug  5 07:21:38 2018
 """
 import datetime
 import logging
-from typing import List, Dict
+from typing import List, Dict, Tuple
 from pathlib import Path
 
 from ib_insync.ib import IB, Contract
@@ -20,14 +20,13 @@ from ib_insync.objects import (
     ComboLeg,
 )
 from ib_insync.order import Trade as IBTrade, LimitOrder, StopOrder
-from optopus.asset import AssetId, Asset, Current, History, Bar
-from optopus.common import AssetType
+from optopus.asset import AssetId, Asset, Current, History, Bar, Stock, ETF, Index
+from optopus.common import AssetType, AssetDefinition, Currency
 from optopus.data_objects import Position, OwnershipType, Account, OrderStatus, Trade
 from optopus.option import Option, OptionId, RightType
 from optopus.strategy import StrategyType, Strategy
 from optopus.data_manager import DataAdapter
 from optopus.settings import CURRENCY, HISTORICAL_YEARS, DTE_MAX, DTE_MIN, EXPIRATIONS
-from optopus.stock import Stock
 from optopus.utils import parse_ib_date, format_ib_date
 
 
@@ -131,6 +130,7 @@ class IBTranslator:
     def __init__(self) -> None:
         self._sectype_translation = {
             "STK": AssetType.Stock,
+            "ETF": AssetType.ETF,
             "OPT": AssetType.Option,
             "FUT": AssetType.Future,
             "CASH": AssetType.Future,
@@ -166,6 +166,11 @@ class IBTranslator:
             "SP": StrategyType.ShortPut,
             "SPVS": StrategyType.ShortPutVerticalSpread,
             "SCVS": StrategyType.ShortCallVerticalSpread,
+        }
+
+        self._currency_translation = {
+            "USD": Currency.USDollar,
+            "EUR": Currency.Euro
         }
 
     def translate_account(self, values: List[AccountValue]) -> Account:
@@ -286,27 +291,38 @@ class IBDataAdapter(DataAdapter):
             positions_data[pd.position_id] = pd
         return positions_data
 
-    def create_assets(self, watchlist: Dict[str, AssetType]) -> List[Asset]:
+    def create_assets(self, watchlist: Tuple[AssetDefinition]) -> List[Asset]:
+        watchlist_dict = {i.code: i for i in watchlist}
         contracts = []
-        for code, value in watchlist.items():
-            if value == AssetType.Stock:
+        for item in watchlist:
+            if item.asset_type == AssetType.Stock or item.asset_type == AssetType.ETF:
                 contracts.append(
-                    IBStock(code, exchange="SMART", currency=CURRENCY.value)
+                    IBStock(item.code, exchange="SMART", currency=item.currency.value)
                 )
+            if item.asset_type == AssetType.Index:
+                contracts.append(
+                    IBIndex(item.code, exchange=item.exchange)
+                )
+        # TODO: Remove the limit
         # It works if len(contracts) < 50. IB limit.
         q_contracts = self._broker.qualifyContracts(*contracts)
         if len(q_contracts) == len(watchlist):
             assets = {}
             for qc in q_contracts:
-                if qc.secType == "STK":
-                    # TODO: The currency value depends on
-                    id = AssetId(
+                id = AssetId(
                         code=qc.symbol,
-                        asset_type=AssetType.Stock,
-                        currency=CURRENCY,
+                        asset_type=watchlist_dict[qc.symbol].asset_type,
+                        currency=self._translator._currency_translation[qc.currency],
                         contract=qc,
                     )
+                if id.asset_type == AssetType.Stock:
                     assets[id.code] = Stock(id)
+                elif id.asset_type == AssetType.ETF:
+                    assets[id.code] = ETF(id)
+                elif id.asset_type == AssetType.Index:
+                    assets[id.code] = Index(id)
+
+
         else:
             raise ValueError("Error: ambiguous contracts")
 
@@ -373,7 +389,7 @@ class IBDataAdapter(DataAdapter):
 
         self._log.debug(f"Total chain elements {len(chain)}")
         if chain:
-            underlying_price = asset.market_price
+            underlying_price = asset.current.market_price
             # width = (a.current.stdev * 2) * underlying_price
             width = underlying_price * 0.1
             min_strike_price = underlying_price - width
@@ -442,22 +458,22 @@ class IBDataAdapter(DataAdapter):
                 underlying_price = t.modelGreeks.undPrice
                 underlying_dividends = t.modelGreeks.pvDividend
             opt_id = OptionId(
-                underlying_id=AssetId,
+                underlying_id=asset.id,
                 asset_type=AssetType.Option,
                 expiration=expiration,
                 strike=strike,
                 right=right,
-                multiplier=t.multiplier,
+                multiplier=t.contract.multiplier,
                 contract=t.contract,
             )
             opt = Option(
-                option_id = opt_id,
+                id=opt_id,
                 high=t.high,
                 low=t.low,
                 close=t.close,
-                bid=t.bid,
+                bid=t.bid if not t.bid == -1 else None,
                 bid_size=t.bidSize,
-                ask=t.ask,
+                ask=t.ask if not t.ask == -1 else None,
                 ask_size=t.askSize,
                 last=t.last,
                 last_size=t.lastSize,
@@ -467,7 +483,7 @@ class IBDataAdapter(DataAdapter):
                 gamma=gamma,
                 theta=theta,
                 vega=vega,
-                implied_volatility=implied_volatility,
+                iv=implied_volatility,
                 underlying_price=underlying_price,
                 underlying_dividends=underlying_dividends,
                 time=t.time,

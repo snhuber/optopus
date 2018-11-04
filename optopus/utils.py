@@ -6,11 +6,14 @@ from urllib import request, parse
 import pandas as pd
 from pandas import DataFrame
 from optopus.asset import Asset
+from optopus.option import Option, OptionId
 
 def to_df(items: List[Any]) -> DataFrame:
     rows = []
     if all([isinstance(i, Asset) for i in items]):
         rows = assets_to_df(items)
+    elif all([isinstance(i, Option) for i in items]):
+        rows = options_to_df(items)
     else: 
         for i in items:
             d = OrderedDict()
@@ -44,6 +47,27 @@ def assets_to_df(items: List[Any]) -> OrderedDict:
             value = getattr(i.measures, attr)
             if not any([isinstance(value, list),
                             isinstance(value, dict),
+                            attr[0:2] == '__']):
+                    d[attr] = value.value if isinstance(value, Enum) else value
+        rows.append(d)
+    return rows
+
+def options_to_df(items: List[Any]) -> OrderedDict:
+    rows = []
+    for i in items:
+        d = OrderedDict()
+        d['code'] = i.id.underlying_id.code
+        d['asset_type'] = i.id.underlying_id.asset_type.value
+        d['expiration'] = i.id.expiration
+        d['strike'] = i.id.strike
+        d['right'] = i.id.right.value
+        d['multiplier'] = i.id.multiplier
+
+        for attr in dir(i):
+            value = getattr(i, attr)
+            if not any([isinstance(value, list),
+                            isinstance(value, dict),
+                            isinstance(value, OptionId),
                             attr[0:2] == '__']):
                     d[attr] = value.value if isinstance(value, Enum) else value
         rows.append(d)

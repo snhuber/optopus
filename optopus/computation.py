@@ -1,10 +1,10 @@
 # -*- coding: utf-8 -*-
-from typing import Dict, List
+from typing import Dict, List, Tuple
 import pandas as pd
 import numpy as np
 from optopus.settings import (MARKET_BENCHMARK, STDEV_PERIOD, BETA_PERIOD,
                               CORRELATION_PERIOD, HISTORICAL_YEARS,
-                              PRICE_PERIOD, IV_PERIOD)
+                              PRICE_PERIOD, IV_PERIOD, RSI_WINDOW, SMA1_WINDOW, SMA2_WINDOW)
 from optopus.asset import Asset
 from optopus.common import Direction
 from optopus.data_objects import (OwnershipType, 
@@ -18,7 +18,7 @@ from optopus.strategy import Strategy
 # https://www.investopedia.com/articles/investing/102115/what-beta-and-how-calculate-beta-excel.asp
 
 
-def calc_beta(values: dict) -> dict:
+def calc_beta(values: Dict[str, Tuple]) -> Dict[str, float]:
     # calculate daily returns
     df = pd.DataFrame(data=values).pct_change().dropna()
     # SPY represents the market
@@ -28,35 +28,60 @@ def calc_beta(values: dict) -> dict:
     covariance = np.cov(np_array, rowvar=False)
     beta = covariance[0, :]/covariance[0, 0]
 
-    names = df.columns.values
     d = {}
-    for i in range(1, len(names)):
-        d[names[i]] = beta[i]
+    for i, col in enumerate(df.columns.values.tolist()):
+        d[col] = beta[i]
     return d
 
 
-def calc_correlation(values: dict) -> dict:
+def calc_correlation(values: Dict[str, Tuple]) -> Dict[str, float]:
     # calculate daily returns
     df = pd.DataFrame(data=values).pct_change().dropna()
     df.insert(0, 'benchmark', df[MARKET_BENCHMARK])
     np_array = df.values[0:CORRELATION_PERIOD, :]
     correlation = np.corrcoef(np_array, rowvar=False)
-    names = df.columns.values
+
     d = {}
-    for i in range(1, len(names)):
-        d[names[i]] = correlation[0, i]
+    for i, col in enumerate(df.columns.values.tolist()):
+        d[col] = correlation[0, i]
     return d
 
 
-def calc_stdev(values: dict) -> dict:
+def calc_stdev(values: Dict[str, Tuple]) -> Dict[str, float]:
     df = pd.DataFrame(data=values).pct_change().dropna()
     np_array = df.values[0:STDEV_PERIOD, :]
     stdev = np.std(np_array, axis=0)
-    names = df.columns.values
+
     d = {}
-    for i in range(0, len(names)):
-        d[names[i]] = stdev[i]
+    for i, col in enumerate(df.columns.values.tolist()):
+        d[col] = stdev[i]
     return d
+
+def calc_rsi(values: Dict[str, Tuple], window_length:int = 14) -> Dict[str, Tuple]:
+    df = pd.DataFrame(data=values).diff()
+    # delta=delta.dropna()
+    up, down = df.copy(), df.copy()
+    up[up < 0] = 0
+    down[down > 0] = 0
+    
+    roll_up = up.rolling(window=window_length).mean()
+    roll_down = down.rolling(window=window_length).mean().abs()
+
+    rs = roll_up / roll_down
+    rsi = 100.0 - (100.0 / (1.0 + rs))
+
+    d = {}
+    for i, col in enumerate(df.columns.values.tolist()):
+        d[col] = tuple(rsi[col].values)
+    return d
+
+def calc_sma(values: Dict[str, Tuple], window_length: int) -> Dict[str, Tuple]:
+    df = pd.DataFrame(data=values).rolling(window_length).mean()
+    d = {}
+    for i, col in enumerate(df.columns.values.tolist()):
+        d[col] = tuple(df[col].values)
+    return d
+
 
 def _iv_rank(asset: Asset, iv_value: float) -> float:
     min_iv_values = [b.low for b in asset.iv_history.values]
@@ -104,12 +129,21 @@ def assets_vector_computation(assets: Dict[str, Asset], close_values: Dict[str, 
     beta = calc_beta(close_values)
     correlation = calc_correlation(close_values)
     stdev = calc_stdev(close_values)
+    rsi = calc_rsi(close_values, RSI_WINDOW)
+    rsi_sma = calc_sma(rsi, 9)
+    sma1 = calc_sma(close_values, SMA1_WINDOW)
+    sma2 = calc_sma(close_values, SMA2_WINDOW)
+
 
     for code in close_values.keys():
         values = {}
         values['beta'] = beta[code]
         values['correlation'] = correlation[code]
         values['stdev'] = stdev[code]
+        values['rsi'] = rsi[code]
+        values['rsi_sma'] = rsi_sma[code]
+        values['sma1'] = sma1[code]
+        values['sma2'] = sma2[code]
         measures[code] = values         
     return measures
 
