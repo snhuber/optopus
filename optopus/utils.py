@@ -40,6 +40,7 @@ def assets_to_df(items: List[Any]) -> OrderedDict:
             value = getattr(i.current, attr)
             if not any([isinstance(value, list),
                             isinstance(value, dict),
+                            isinstance(value,tuple),
                             attr[0:2] == '__']):
                     d[attr] = value.value if isinstance(value, Enum) else value
         
@@ -47,8 +48,10 @@ def assets_to_df(items: List[Any]) -> OrderedDict:
             value = getattr(i.measures, attr)
             if not any([isinstance(value, list),
                             isinstance(value, dict),
+                            isinstance(value,tuple),
                             attr[0:2] == '__']):
                     d[attr] = value.value if isinstance(value, Enum) else value
+
         rows.append(d)
     return rows
 

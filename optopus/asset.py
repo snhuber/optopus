@@ -73,10 +73,15 @@ class Measures:
     beta: float
     correlation: float
     rsi: Tuple
-    rsi_sma: Tuple
-    sma1: Tuple
-    sma2: Tuple
-    directional_assumption: Direction
+    fast_sma: Tuple
+    slow_sma: Tuple
+    very_slow_sma: Tuple
+    fast_sma_speed: Tuple
+    fast_sma_speed_diff: Tuple
+    
+@dataclass(frozen=True)
+class Forecast:
+    direction: Tuple
 
 
 class Asset:
@@ -86,6 +91,7 @@ class Asset:
         self.price_history: History = None
         self.iv_history: History = None
         self.measures: Measures = None
+        self.forecast: Forecast = None
 
     @property
     def id(self):

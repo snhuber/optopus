@@ -35,19 +35,12 @@ WATCH_LIST = {
 }
 
 WATCH_LIST = {
-    "SPY": AssetType.ETF,
-    "XOP": AssetType.ETF,
-    "XLI": AssetType.ETF,
-    "XLE": AssetType.ETF,
-    "OIH": AssetType.ETF,
-}
-
-WATCH_LIST = {"SPY": AssetType.ETF, "AD-NYSE": AssetType.Index}
-
-WATCH_LIST = (
     AssetDefinition("SPY", AssetType.ETF),
     AssetDefinition("TRIN-NYSE", AssetType.Index, exchange="NYSE"),
-)
-
+    AssetDefinition("XOP", AssetType.ETF),
+    AssetDefinition("XLI", AssetType.ETF),
+    AssetDefinition("XLE", AssetType.ETF),
+    AssetDefinition("OIH", AssetType.ETF)
+}
 
 # https://groups.io/g/twsapi/topic/market_breadth_symbols_at_ib/11899195?p=,,,20,0,0,0::recentpostdate%2Fsticky,,,20,2,0,11899195

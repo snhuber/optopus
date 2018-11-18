@@ -30,6 +30,9 @@ opt.register_algorithm(algo.execute)
 
 opt.start()
 
+#breadth_indicator='TRIN-NYSE'
+#time = opt.history(breadth_indicator, "time")
+#value = opt.history(breadth_indicator, "value")
 #df = to_df(opt.assets().values())
 #print(df)
 opt.loop()

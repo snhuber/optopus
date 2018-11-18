@@ -3,7 +3,7 @@ import copy
 import datetime
 import logging
 from typing import Dict, Tuple
-from optopus.asset import Asset, History, Measures, AssetType
+from optopus.asset import Asset, History, Measures, AssetType, Forecast
 from optopus.data_objects import Portfolio
 from optopus.strategy import Strategy
 from optopus.computation import (
@@ -81,7 +81,13 @@ class DataManager:
     def update_historical_IV_assets(self) -> None:
         """Updates historical IV asset values
         """
-        for a in self._assets.values():
+        assets = [
+            a
+            for a in self._assets.values()
+            if a.id.asset_type in (AssetType.Stock, AssetType.ETF)
+        ]
+
+        for a in assets:
             if a.iv_history:
                 delta = datetime.datetime.now() - a.iv_history.created
                 if delta.days:
@@ -92,25 +98,26 @@ class DataManager:
     def compute(self) -> None:
         """Computes some asset measures
         """
-        computable_assets = {
-            a.id.code: a
-            for a in self._assets.values()
-            if a.id.asset_type == AssetType.Stock or a.id.asset_type == AssetType.ETF
-        }
-        loop_m = assets_loop_computation(computable_assets)
-        vector_m = assets_vector_computation(computable_assets, self.assets_matrix(computable_assets, "close"))
-        # print({k: a.current.market_price for (k, a) in self._assets.items()})
-        directional_m = assets_directional_assumption(
-            computable_assets, self.assets_matrix(computable_assets, "close")
-        )
+        measure_assets = {}
+        measure_names = ('price_percentile', 'price_pct', 'iv', 'iv_rank', 'iv_percentile',
+        'iv_pct', 'stdev', 'beta', 'correlation', 'rsi', 'sma20', 'sma50', 'sma200')
+        for a in self._assets.values():
+            m = {}
+            for n in measure_names:    
+                m[n] = None
+            measure_assets[a.id.code] = m
+        
+        loop_m = assets_loop_computation(self._assets, measure_assets)
+        vector_m = assets_vector_computation(self._assets, measure_assets)
+        #)
         # self.portfolio.bwd = portfolio_bwd(self.strategies,
         #                                   self._assets,
         #                                   self._assets[MARKET_BENCHMARK].current.market_price)
 
-        for a in computable_assets.values():
+        for a in self._assets.values():
             a.measures = Measures(
                 price_percentile=loop_m[a.id.code]["price_percentile"],
-                price_pct=loop_m[a.id.code]["price_pct"],
+                price_pct=vector_m[a.id.code]["price_pct"],
                 iv=loop_m[a.id.code]["iv"],
                 iv_rank=loop_m[a.id.code]["iv_rank"],
                 iv_percentile=loop_m[a.id.code]["iv_percentile"],
@@ -119,21 +126,18 @@ class DataManager:
                 beta=vector_m[a.id.code]["beta"],
                 correlation=vector_m[a.id.code]["correlation"],
                 rsi=vector_m[a.id.code]["rsi"],
-                rsi_sma=vector_m[a.id.code]["rsi_sma"],
-                sma1=vector_m[a.id.code]["sma1"],
-                sma2=vector_m[a.id.code]["sma2"],
-                directional_assumption=directional_m[a.id.code][
-                    "directional_assumption"
-                ],
+                fast_sma=vector_m[a.id.code]["fast_sma"],
+                slow_sma=vector_m[a.id.code]["slow_sma"],
+                very_slow_sma=vector_m[a.id.code]["very_slow_sma"],
+                fast_sma_speed=vector_m[a.id.code]["fast_sma_speed"],
+                fast_sma_speed_diff=vector_m[a.id.code]["fast_sma_speed_diff"]
             )
 
-    def assets_matrix(self, assets: Asset, field: str) -> dict:
-        """Returns a attribute from historical for every asset
-        """
-        d = {}
-        for a in assets.values():
-            d[a.id.code] = [getattr(bar, field) for bar in a.price_history.values]
-        return d
+        directional_m = assets_directional_assumption(self._assets)
+        for code, v in directional_m.items():
+            self._assets[code].forecast = Forecast(v)
+
+    
 
     def option_chain(self, code: str, expiration: datetime.date) -> None:
         """Update option chain values

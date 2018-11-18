@@ -6,7 +6,7 @@ from optopus.data_objects import OwnershipType
 from optopus.option import Option, RightType
 from optopus.strategy import Strategy, StrategyType, Leg, DefinedStrategy
 
-
+# https://safertrader.com/credit-spread-screening/
 class ShortPutVerticalSpread(DefinedStrategy):
     def __init__(self, buy_put: Option, sell_put: Option, profit_factor: float = 0.5):
         if (

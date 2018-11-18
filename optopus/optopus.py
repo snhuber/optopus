@@ -108,6 +108,34 @@ class Optopus:
                 algorithm()
             self._broker.sleep(SLEEP_LOOP)
 
+    def series(self, code: str, item: str) -> Tuple:
+        if item == "time":
+            return [b.time for b in self._data_manager.assets[code].price_history.values]
+        elif item == "value":
+            return [b.close for b in self._data_manager.assets[code].price_history.values]
+        elif item == "iv":
+            return [b.close for b in self._data_manager.assets[code].iv_history.values]
+        elif item == "rsi":
+            return self._data_manager.assets[code].measures.rsi
+        elif item == "sma_rsi":
+            return self._data_manager.assets[code].measures.rsi_sma
+        elif item == "fast_sma":
+            return self._data_manager.assets[code].measures.fast_sma
+        elif item == "slow_sma":
+            return self._data_manager.assets[code].measures.slow_sma
+        elif item == "very_slow_sma":
+            return self._data_manager.assets[code].measures.very_slow_sma
+        elif item == "fast_sma_speed":
+            return self._data_manager.assets[code].measures.fast_sma_speed
+        elif item == "fast_sma_speed_diff":
+            return self._data_manager.assets[code].measures.fast_sma_speed_diff        
+        elif item == "direction":
+            return self._data_manager.assets[code].forecast.direction
+        else:
+            return None
+
+
+
     def price_history(self, code: str) -> Tuple:
         return self._data_manager.assets[code].price_history
 
